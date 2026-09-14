@@ -1,0 +1,58 @@
+{
+  "id": "/?source=pwa",
+  "name": "Bemblo — Talk. Share. Connect.",
+  "short_name": "Bemblo",
+  "description": "Temporary conversations with lasting Moments. Bemblo combines fast messaging with a social feed you control.",
+  "start_url": "/home?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#f4f4fb",
+  "theme_color": "#6c4bf7",
+  "categories": ["social", "communication"],
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icons/bemblo-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/bemblo-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/bemblo-icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create a Moment",
+      "short_name": "Create",
+      "url": "/create",
+      "description": "Share a photo, video or thought"
+    },
+    {
+      "name": "Messages",
+      "short_name": "Messages",
+      "url": "/messages",
+      "description": "Open your conversations"
+    },
+    {
+      "name": "Notifications",
+      "short_name": "Alerts",
+      "url": "/notifications",
+      "description": "Likes, comments, follows and requests"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
