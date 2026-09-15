@@ -337,7 +337,6 @@ export function Overlay({
       <div className="scrim" onClick={onClose} aria-hidden="true" />
       <div
         ref={ref}
-        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
