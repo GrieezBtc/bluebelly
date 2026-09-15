@@ -311,7 +311,7 @@ export function Overlay({
   variant?: "sheet" | "dialog";
   labelledBy?: string;
 }) {
-  const generatedId = useId();
+    const generatedId = useId();
   const titleId = labelledBy ?? generatedId;
 
   useEffect(() => {
@@ -331,7 +331,6 @@ export function Overlay({
       document.body.style.overflow = previous;
     };
   }, [open, onClose]);
-
   if (!open) return null;
 
   return (
