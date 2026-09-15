@@ -313,7 +313,6 @@ export function Overlay({
 }) {
   const generatedId = useId();
   const titleId = labelledBy ?? generatedId;
-  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -323,7 +322,6 @@ export function Overlay({
     document.addEventListener("keydown", onKey);
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    ref.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
