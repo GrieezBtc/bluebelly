@@ -316,12 +316,16 @@ export function Overlay({
 
   useEffect(() => {
     if (!open) return;
+
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
+
     document.addEventListener("keydown", onKey);
+
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
@@ -348,12 +352,23 @@ export function Overlay({
             </h2>
             {description ? <p className="caption pt-0.5">{description}</p> : null}
           </div>
-          <button type="button" className="btn-icon" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={onClose}
+            aria-label="Close"
+          >
             <Icon name="x" size={20} />
           </button>
         </div>
+
         <div className="p-4">{children}</div>
-        {footer ? <div className="sticky bottom-0 border-t border-line bg-surface p-4">{footer}</div> : null}
+
+        {footer ? (
+          <div className="sticky bottom-0 border-t border-line bg-surface p-4">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </>
   );
