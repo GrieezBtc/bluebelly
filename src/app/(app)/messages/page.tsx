@@ -230,15 +230,33 @@ function MessagesInner() {
           <div className="card card-pad flex flex-col gap-3">
             <p className="eyebrow">Create a group</p>
             <Field label="Group name" htmlFor="new-group-name">
-              <input
-                id="new-group-name"
-                className="input"
-                value={groupName}
-                maxLength={60}
-                onChange={(event) => setGroupName(event.target.value)}
-                placeholder="Sunday ride"
-              />
-            </Field>
+  <input
+    id="new-group-name"
+    className="input"
+    value={groupName}
+    maxLength={60}
+    onChange={(event) => {
+      console.log(
+        "[GROUP INPUT] change",
+        event.target.value,
+        "active:",
+        document.activeElement?.id,
+      );
+      setGroupName(event.target.value);
+    }}
+    onBlur={() => {
+      console.log(
+        "[GROUP INPUT] BLUR",
+        "active:",
+        document.activeElement?.id,
+      );
+    }}
+    onFocus={() => {
+      console.log("[GROUP INPUT] FOCUS");
+    }}
+    placeholder="Sunday ride"
+  />
+</Field>
             <div className="flex flex-wrap gap-2">
               {people.slice(0, 8).map((person) => {
                 const selected = groupMembers.includes(person.username);
