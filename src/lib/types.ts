@@ -175,6 +175,7 @@ export type SearchResults = {
 
 export type SessionUser = PublicUser & {
   email: string;
+  emailVerifiedAt: string | null;
   phone: string | null;
   messagePermission: MessagePermission;
   notificationPrefs: NotificationPrefs;

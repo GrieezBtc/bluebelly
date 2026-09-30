@@ -43,6 +43,7 @@ function SettingsInner() {
   const { show } = useToast();
   const [tab, setTab] = useState<Tab>("account");
   const [busy, setBusy] = useState(false);
+  const [resendBusy, setResendBusy] = useState(false);
   const [name, setName] = useState(user?.name ?? "");
   const [username, setUsername] = useState(user?.username ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
@@ -91,6 +92,42 @@ function SettingsInner() {
       show({ title: "Could not save", description: error instanceof Error ? error.message : undefined, tone: "error" });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function resendVerification() {
+    setResendBusy(true);
+    try {
+      const result = await api.post<{
+        delivered: boolean;
+        alreadyVerified?: boolean;
+        message: string;
+        previewUrl?: string;
+      }>("/api/auth/resend-verification");
+
+      if (result.previewUrl) {
+        show({
+          title: "Verification link created",
+          description: result.previewUrl,
+          tone: "success",
+        });
+      } else {
+        show({
+          title: "Verification email requested",
+          description: result.message,
+          tone: "success",
+        });
+      }
+
+      await refresh();
+    } catch (error) {
+      show({
+        title: "Could not resend verification",
+        description: error instanceof Error ? error.message : undefined,
+        tone: "error",
+      });
+    } finally {
+      setResendBusy(false);
     }
   }
 
@@ -230,10 +267,34 @@ function SettingsInner() {
                 <p className="text-sm font-semibold">Email</p>
                 <p className="body-sm">{user.email}</p>
               </div>
-              <Badge tone="followers" icon="check">
-                Verified
-              </Badge>
+
+              {user.emailVerifiedAt ? (
+                <Badge tone="followers" icon="check">
+                  Verified
+                </Badge>
+              ) : (
+                <Badge tone="danger" icon="alert">
+                  Not verified
+                </Badge>
+              )}
             </div>
+
+            {!user.emailVerifiedAt ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={resendBusy}
+                  onClick={resendVerification}
+                >
+                  {resendBusy ? <Spinner /> : <Icon name="mail" size={16} />}
+                  Resend verification
+                </button>
+                <p className="text-xs text-muted">
+                  The verification link expires after 24 hours.
+                </p>
+              </div>
+            ) : null}
             <Field label="Phone (optional)" hint="Used for account recovery and security alerts only." htmlFor="settings-phone">
               <input id="settings-phone" className="input" value={phone} onChange={(event) => setPhone(event.target.value)} />
             </Field>

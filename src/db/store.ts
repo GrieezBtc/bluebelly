@@ -727,6 +727,7 @@ export async function sessionPayload(user: AuthUser): Promise<SessionUser> {
   return {
     ...toPublicUser(user),
     email: user.email,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
     phone: user.phone,
     messagePermission: user.messagePermission,
     notificationPrefs: normalizePrefs(user.notificationPrefs),
