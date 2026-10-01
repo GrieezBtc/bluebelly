@@ -121,7 +121,6 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overscroll-behavior-y: none;
 }
 
 :focus-visible {
