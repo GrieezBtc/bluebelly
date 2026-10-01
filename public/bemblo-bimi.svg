@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     version="1.2"
+     baseProfile="tiny-ps"
+     viewBox="0 0 40 40">
+  <title>Bemblo</title>
+  <desc>Bemblo brand mark</desc>
+
+  <defs>
+    <linearGradient id="bemblo-mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6C4BF7"/>
+      <stop offset="60%" stop-color="#9A5CFF"/>
+      <stop offset="100%" stop-color="#12B886"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="40" height="40" rx="12" fill="url(#bemblo-mark)"/>
+
+  <path
+    d="M13 11.5h7.6a4.7 4.7 0 0 1 1.2 9.25
+       4.9 4.9 0 0 1-2 9.35h-3.3v3.4h-3.5z"
+    fill="#fff"
+    opacity="0.96"/>
+
+  <circle cx="27.5" cy="27.5" r="2.6" fill="#fff" opacity="0.8"/>
+</svg>
