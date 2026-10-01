@@ -1,5 +1,5 @@
 import { fail, forbidden, notFound, ok, readJson, requireString } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth";
 import {
   getConversationDetail,
   markConversationRead,
@@ -18,7 +18,7 @@ export async function GET(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const conversationId = Number(id);
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     await sweepIfStale();
     const detail = await getConversationDetail(user, conversationId);
     if (!detail) throw notFound("Conversation not found.");
@@ -33,7 +33,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const conversationId = Number(id);
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const body = await readJson<{
       action?: string;
       kind?: string;
@@ -81,7 +81,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const conversationId = Number(id);
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const body = await readJson<{ action?: string; value?: string }>(request);
     const allowed = ["accept", "decline", "leave", "mute", "unmute", "rename"] as const;
     if (!allowed.includes(body.action as (typeof allowed)[number])) {
@@ -105,7 +105,7 @@ export async function DELETE(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const conversationId = Number(id);
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const result = await respondToConversation(user, conversationId, "leave");
     if (!result.ok) throw notFound("Conversation not found.");
     return ok({ message: result.message ?? "You left the conversation." });

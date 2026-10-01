@@ -222,6 +222,14 @@ async function login(request: Request) {
   if (!user || !verifyPassword(password, user.passwordHash)) {
     throw new ApiError("invalid_credentials", "Email, username or password is incorrect.", 401);
   }
+
+  if (!user.emailVerifiedAt) {
+    throw new ApiError(
+      "email_not_verified",
+      "Your email address is not verified yet. Check your inbox and verify your email before logging in.",
+      403,
+    );
+  }
   await db.update(users).set({ lastActiveAt: new Date() }).where(eq(users.id, user.id));
   const existingToken = await readToken(request);
   if (existingToken) {

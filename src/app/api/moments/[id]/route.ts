@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { mediaAssets, moments } from "@/db/schema";
 import { fail, forbidden, notFound, ok, pickEnum, readJson } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth";
 import { getMoment, listComments } from "@/db/store";
 import { getCurrentUser } from "@/lib/auth";
 import { deleteAsset } from "@/lib/storage";
@@ -33,7 +33,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const momentId = Number(id);
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const [moment] = await db.select().from(moments).where(eq(moments.id, momentId)).limit(1);
     if (!moment) throw notFound("Moment not found.");
     if (moment.authorId !== user.id) throw forbidden("Only the author can change this Moment's audience.");
@@ -65,7 +65,7 @@ export async function DELETE(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const momentId = Number(id);
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const [moment] = await db.select().from(moments).where(eq(moments.id, momentId)).limit(1);
     if (!moment) throw notFound("Moment not found.");
     if (moment.authorId !== user.id) throw forbidden("Only the author can delete this Moment.");

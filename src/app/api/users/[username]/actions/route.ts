@@ -1,6 +1,6 @@
 import { applyFollowAction, getPublicProfile } from "@/db/store";
 import { ApiError, fail, notFound, ok, readJson } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ const ACTIONS: Action[] = ["follow", "unfollow", "accept", "decline", "remove_fo
 export async function POST(request: Request, { params }: Params) {
   try {
     const { username } = await params;
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const body = await readJson<{ action?: string }>(request);
     if (!ACTIONS.includes(body.action as Action)) throw notFound("Unknown action.");
     const result = await applyFollowAction(user, username, body.action as Action);

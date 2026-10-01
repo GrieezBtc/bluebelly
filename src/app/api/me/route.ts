@@ -2,7 +2,7 @@ import { and, eq, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import { blocks, conversationMembers, conversations, follows, mediaAssets, moments, mutes, sessions, users } from "@/db/schema";
 import { fail, ok, readJson, requireString, toInt } from "@/lib/api";
-import { requireUser, setSessionCookie, createSession, hashToken, readToken } from "@/lib/auth";
+import { requireVerifiedUser, setSessionCookie, createSession, hashToken, readToken } from "@/lib/auth";
 import {
   normalizePrefs,
   profileCounts,
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 /** GET /api/me — profile + settings + counts for the signed-in account. */
 export async function GET(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const counts = await profileCounts(user.id);
     const pending = await userSummaryList(user, "pending");
     return ok({
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 /** PATCH /api/me — account, privacy, messaging permissions, notification prefs. */
 export async function PATCH(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const body = await readJson<{
       name?: string;
       username?: string;
@@ -129,7 +129,7 @@ async function pendingFollowRequests(userId: number) {
 /** PUT /api/me — change password (keeps the current device signed in). */
 export async function PUT(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const body = await readJson(request);
     const current = requireString(body.currentPassword, "Current password", { max: 200 });
     const next = requireString(body.newPassword, "New password", { min: 8, max: 200 });
@@ -159,7 +159,7 @@ export async function PUT(request: Request) {
 /** DELETE /api/me — account deletion with cascading cleanup. */
 export async function DELETE(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const url = new URL(request.url);
     const confirm = url.searchParams.get("confirm");
     if (confirm !== user.username) {
@@ -198,7 +198,7 @@ export async function DELETE(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const body = await readJson(request);
     const action = typeof body.action === "string" ? body.action : "";
     if (action !== "sign-out-other-devices") return ok({ message: "Nothing to do." }, 400);

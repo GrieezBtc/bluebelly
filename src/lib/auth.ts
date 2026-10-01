@@ -95,6 +95,18 @@ export async function requireUser(request?: Request): Promise<AuthUser> {
   return user;
 }
 
+export async function requireVerifiedUser(request?: Request): Promise<AuthUser> {
+  const user = await requireUser(request);
+  if (!user.emailVerifiedAt) {
+    const { forbidden } = await import("@/lib/api");
+    throw forbidden(
+      "Please verify your email address before using Bemblo.",
+      "email_not_verified",
+    );
+  }
+  return user;
+}
+
 export function publicBaseUrl(request?: Request) {
   const envUrl = process.env.BEMBLO_PUBLIC_URL;
   if (envUrl) return envUrl.replace(/\/$/, "");

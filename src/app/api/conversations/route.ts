@@ -1,5 +1,5 @@
 import { badRequest, fail, ok, readJson, requireString } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth";
 import { createGroupConversation, ensureDirectConversation, listConversations, sweepIfStale } from "@/db/store";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 /** GET /api/conversations?tab=inbox|requests */
 export async function GET(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     await sweepIfStale();
     const url = new URL(request.url);
     const tab = url.searchParams.get("tab") === "requests" ? "requests" : "inbox";
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 /** POST /api/conversations — start a 1-to-1 or group conversation. */
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const body = await readJson<{ kind?: string; username?: string; title?: string; usernames?: string[]; imageUrl?: string }>(
       request,
     );

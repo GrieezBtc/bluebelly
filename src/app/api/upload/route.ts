@@ -1,5 +1,5 @@
 import { badRequest, fail, ok } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth";
 import { MAX_UPLOAD_BYTES, kindFromMime, saveUpload } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 /** POST /api/upload — multipart upload for Moment media, chat media and voice notes. */
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) throw badRequest("Attach a file to upload.");

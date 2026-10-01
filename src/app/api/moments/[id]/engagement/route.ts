@@ -1,5 +1,5 @@
 import { fail, notFound, ok, readJson, requireString } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth";
 import { addComment, getMoment, listComments, shareMoment, toggleLike } from "@/db/store";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const momentId = Number(id);
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const body = await readJson<{ action?: string; body?: string }>(request);
     switch (body.action) {
       case "like":

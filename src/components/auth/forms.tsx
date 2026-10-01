@@ -39,7 +39,12 @@ export function LoginForm() {
       router.replace("/home");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "We could not sign you in.");
+      const error = err as Error & { code?: string };
+      if (error.code === "email_not_verified") {
+        setError("Your email is not verified yet. Check your inbox and verify it before logging in.");
+      } else {
+        setError(error.message || "We could not sign you in.");
+      }
       setBusy(false);
     }
   }
@@ -150,7 +155,7 @@ export function SignupForm() {
     setError(null);
     try {
       await api.post("/api/auth/signup", { name, username, email, password });
-      router.replace("/onboarding");
+      router.replace("/verify-required");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "We could not create your account.");
@@ -447,8 +452,8 @@ export function VerifyEmailPanel() {
       <InfoBanner tone={state === "failed" ? "danger" : state === "done" ? "brand" : "info"} icon={state === "failed" ? "alert" : "shield-check"}>
         <p>{message}</p>
       </InfoBanner>
-      <Link href={state === "done" ? "/home" : "/settings"} className="btn btn-primary btn-block">
-        {state === "done" ? "Continue to Bemblo" : "Back to settings"}
+      <Link href={state === "done" ? "/login" : "/login"} className="btn btn-primary btn-block">
+        {state === "done" ? "Email verified — log in" : "Back to login"}
       </Link>
     </div>
   );

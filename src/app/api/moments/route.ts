@@ -1,5 +1,5 @@
 import { badRequest, fail, ok, paginationFrom, pickEnum, readJson, requireString, toInt } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth";
 import { createMomentRecord, listFeed } from "@/db/store";
 import type { MomentAudience, MomentKind } from "@/db/schema";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /** GET /api/moments — Moments feed (privacy + block filters applied server-side). */
 export async function GET(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const url = new URL(request.url);
     const { limit, cursor } = paginationFrom(url.searchParams);
     const authorId = toInt(url.searchParams.get("authorId"));
@@ -25,7 +25,7 @@ const KINDS: MomentKind[] = ["text", "photo", "video"];
 /** POST /api/moments — publish a Moment. The audience must be chosen explicitly. */
 export async function POST(request: Request) {
   try {
-    const user = await requireUser(request);
+    const user = await requireVerifiedUser(request);
     const body = await readJson<{
       kind?: string;
       body?: string;
