@@ -22,7 +22,13 @@ export function useNavItems(): NavItem[] {
   const counts = user?.counts;
   return [
     { href: "/home", label: "Home", icon: "home", match: (p) => p === "/home" || p === "/" },
-
+    {
+      href: "/notifications",
+      label: "Notifications",
+      icon: "bell",
+      badge: counts?.unreadNotifications ?? 0,
+      match: (p) => p.startsWith("/notifications"),
+    },
     { href: "/create", label: "Create", icon: "create", match: (p) => p.startsWith("/create") },
     {
       href: "/messages",
@@ -32,18 +38,12 @@ export function useNavItems(): NavItem[] {
       match: (p) => p.startsWith("/messages"),
     },
     {
-      href: "/notifications",
-      label: "Notifications",
-      icon: "bell",
-      badge: counts?.unreadNotifications ?? 0,
-      match: (p) => p.startsWith("/notifications"),
-    },
-    {
       href: user ? `/profile/${user.username}` : "/profile",
       label: "Profile",
       icon: "user",
       match: (p) => p.startsWith("/profile") || p.startsWith("/settings"),
     },
+  
   ];
 }
 
