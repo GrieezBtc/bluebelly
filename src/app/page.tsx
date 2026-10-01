@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { BrandMark, Icon } from "@/components/icons";
 import { getCurrentUser } from "@/lib/auth";
 import { PublicProviders } from "@/components/providers";
-import { DemoButton } from "@/components/auth/demo-button";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +49,7 @@ export default async function LandingPage() {
         </header>
 
         <main className="mx-auto w-full max-w-5xl px-5">
-          <section className="grid gap-8 py-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-14">
+          <section className="mx-auto max-w-3xl py-8 lg:py-14">
             <div className="rise-in">
               <span className="badge badge-onlyme">
                 <span className="badge-dot" /> New · Bemblo 1.0
@@ -73,10 +72,6 @@ export default async function LandingPage() {
                   Log in
                 </Link>
               </div>
-              <div className="flex flex-wrap items-center gap-3 pt-4">
-                <DemoButton />
-                <span className="caption">No signup needed — explore Bemblo with a ready-made demo world.</span>
-              </div>
               <ul className="flex flex-wrap gap-x-5 gap-y-2 pt-6 text-sm" style={{ color: "var(--ink-2)" }}>
                 <li className="flex items-center gap-2">
                   <Icon name="check" size={16} className="text-mint" /> Installable as an app
@@ -90,73 +85,6 @@ export default async function LandingPage() {
               </ul>
             </div>
 
-            {/* Phone preview — pure CSS/SVG so the landing stays fast */}
-            <div className="flex justify-center lg:justify-end">
-              <div className="relative w-[290px] max-w-full">
-                <div className="absolute -inset-6 -z-10 brand-gradient-soft blur-2xl" aria-hidden="true" />
-                <div className="card overflow-hidden p-0 shadow-lg">
-                  <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
-                    <BrandMark size={22} />
-                    <div className="flex gap-1 text-ink-3">
-                      <Icon name="search" size={16} />
-                      <Icon name="bell" size={16} />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-3 p-3">
-                    <div className="card-flat p-3">
-                      <div className="flex items-center gap-2">
-                        <span className="avatar avatar-sm accent-violet">AR</span>
-                        <div>
-                          <p className="text-sm font-semibold">Ava Rivera</p>
-                          <p className="caption">2h · Followers</p>
-                        </div>
-                      </div>
-                      <p className="body-sm pt-2">Sunday ride through the old quarter. Slowing down suits me.</p>
-                      <div className="mt-2 h-24 rounded-sm" style={{ background: "linear-gradient(120deg,#f4553f33,#6c4bf733)" }} />
-                      <div className="flex items-center gap-4 pt-2 text-ink-3">
-                        <span className="flex items-center gap-1 text-xs">
-                          <Icon name="heart" size={15} /> 24
-                        </span>
-                        <span className="flex items-center gap-1 text-xs">
-                          <Icon name="comment" size={15} /> 3
-                        </span>
-                        <span className="flex items-center gap-1 text-xs">
-                          <Icon name="share" size={15} />
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <div className="bubble bubble-theirs self-start">
-                        Did you see the light on Rua do Norte?
-                        <span className="bubble-meta">
-                          <Icon name="clock" size={11} /> 24h after viewing
-                        </span>
-                      </div>
-                      <div className="bubble bubble-mine self-end">
-                        Yes! Send them when you are back at a screen.
-                        <span className="bubble-meta">
-                          <Icon name="check-double" size={11} /> viewed
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-5 border-t border-line px-1 py-2 text-[0.625rem] text-ink-3">
-                    {[
-                      { label: "Home", icon: "home" as const },
-                      { label: "Moments", icon: "moments" as const },
-                      { label: "Create", icon: "create" as const },
-                      { label: "Messages", icon: "chat" as const },
-                      { label: "Profile", icon: "user" as const },
-                    ].map((item, index) => (
-                      <span key={item.label} className="flex flex-col items-center gap-1" style={{ color: index === 1 ? "var(--brand)" : undefined }}>
-                        <Icon name={item.icon} size={17} />
-                        {item.label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
           </section>
 
           <section className="grid gap-3 py-6 sm:grid-cols-2">
