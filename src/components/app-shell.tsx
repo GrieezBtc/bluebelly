@@ -32,6 +32,13 @@ export function useNavItems(): NavItem[] {
       match: (p) => p.startsWith("/messages"),
     },
     {
+      href: "/notifications",
+      label: "Notifications",
+      icon: "bell",
+      badge: counts?.unreadNotifications ?? 0,
+      match: (p) => p.startsWith("/notifications"),
+    },
+    {
       href: user ? `/profile/${user.username}` : "/profile",
       label: "Profile",
       icon: "user",
@@ -42,7 +49,6 @@ export function useNavItems(): NavItem[] {
 
 export function BrandHeaderActions({ onOpenSearch }: { onOpenSearch?: () => void }) {
   const { user } = useSession();
-  const unread = user?.counts.unreadNotifications ?? 0;
   return (
     <div className="flex items-center gap-1">
       {onOpenSearch ? (
@@ -54,10 +60,6 @@ export function BrandHeaderActions({ onOpenSearch }: { onOpenSearch?: () => void
           <Icon name="search" />
         </Link>
       )}
-      <Link href="/notifications" className="btn-icon relative" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}>
-        <Icon name="bell" />
-        {unread > 0 ? <span className="count-badge absolute right-1 top-1">{unread > 9 ? "9+" : unread}</span> : null}
-      </Link>
     </div>
   );
 }
