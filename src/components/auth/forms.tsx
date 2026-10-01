@@ -101,10 +101,6 @@ export function LoginForm() {
           Create an account
         </Link>
       </p>
-      <div className="relative py-1 text-center">
-        <span className="caption">or</span>
-      </div>
-      <DemoButton label="Explore the demo account" block />
     </form>
   );
 }
