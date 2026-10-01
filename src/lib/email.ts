@@ -59,9 +59,13 @@ function emailLayout({
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e7e1ff;">
       <tr>
         <td style="background:#6d45f5;padding:28px 32px;text-align:center;">
-          <div style="display:inline-block;width:52px;height:52px;line-height:52px;border-radius:15px;background:#ffffff;color:#6d45f5;font-size:28px;font-weight:800;">
-            B.
-          </div>
+          <img
+  src="https://bemblo.name.ng/bemblo-bimi.svg"
+  alt="Bemblo"
+  width="72"
+  height="72"
+  style="display:block;width:72px;height:72px;margin:0 auto 16px;border:0;border-radius:20px;"
+/>
           <div style="margin-top:12px;color:#ffffff;font-size:25px;font-weight:800;">
             bemblo
           </div>
