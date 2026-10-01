@@ -22,7 +22,7 @@ export function useNavItems(): NavItem[] {
   const counts = user?.counts;
   return [
     { href: "/home", label: "Home", icon: "home", match: (p) => p === "/home" || p === "/" },
-    { href: "/moments", label: "Moments", icon: "moments", match: (p) => p.startsWith("/moments") },
+
     { href: "/create", label: "Create", icon: "create", match: (p) => p.startsWith("/create") },
     {
       href: "/messages",
