@@ -264,6 +264,29 @@ export default function HomePage() {
         )}
       </section>
 
+      <section className="pb-6" aria-labelledby="feed-heading">
+        <div className="section-title">
+          <h2 className="h3" id="feed-heading">
+            Latest Moments
+          </h2>
+          <Link href="/moments" className="text-xs font-semibold text-brand">
+            Open feed
+          </Link>
+        </div>
+        <FeedList
+          query="/api/moments?limit=4"
+          empty={{
+            title: "No Moments yet",
+            description: "Share your first Moment or follow a few people to fill this space.",
+            action: (
+              <Link href="/create" className="btn btn-primary btn-sm">
+                Create a Moment
+              </Link>
+            ),
+          }}
+        />
+      </section>
+
       <SuggestionsRail />
       <div className="h-4" />
     </div>
