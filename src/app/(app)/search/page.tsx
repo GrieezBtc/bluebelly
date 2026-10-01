@@ -61,7 +61,7 @@ export default function SearchPage() {
   const moments: MomentView[] = results?.moments ?? [];
 
   return (
-    <div className="page px-4">
+    <div className="page search-page px-4">
       <PageHeader title="Search" subtitle="People, usernames and Moment text" />
 
       <Field label="Search Bemblo" htmlFor="global-search">
