@@ -348,12 +348,6 @@ export function ConversationView({ conversationId }: { conversationId: number })
           value={draft}
           placeholder="Write a message…"
           onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              if (draft.trim()) void send("text", draft.trim());
-            }
-          }}
         />
         {draft.trim() ? (
           <button type="submit" className="btn btn-primary" disabled={sending} aria-label="Send message">
