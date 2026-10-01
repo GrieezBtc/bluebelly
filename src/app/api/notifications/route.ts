@@ -18,8 +18,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireVerifiedUser(request);
-    const body = await readJson<{ id?: number }>(request);
-    await markNotificationsRead(user, toInt(body.id));
+    const body = await readJson<{
+      id?: number;
+      scope?: "general" | "messages" | "all";
+    }>(request);
+
+    await markNotificationsRead(
+      user,
+      toInt(body.id),
+      body.scope ?? "all",
+    );
     return ok({ notifications: await listNotifications(user), session: await sessionPayload(user) });
   } catch (error) {
     return fail(error);

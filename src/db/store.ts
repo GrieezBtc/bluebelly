@@ -681,7 +681,11 @@ export async function listNotifications(viewer: AuthUser): Promise<NotificationV
   });
 }
 
-export async function markNotificationsRead(viewer: AuthUser, id?: number) {
+export async function markNotificationsRead(
+  viewer: AuthUser,
+  id?: number,
+  scope: "general" | "messages" | "all" = "all",
+) {
   if (id) {
     await db
       .update(notifications)
@@ -689,10 +693,27 @@ export async function markNotificationsRead(viewer: AuthUser, id?: number) {
       .where(and(eq(notifications.userId, viewer.id), eq(notifications.id, id)));
     return;
   }
+
+  const typeFilter =
+    scope === "messages"
+      ? inArray(notifications.type, ["message", "message_request"])
+      : scope === "general"
+        ? notInArray(notifications.type, ["message", "message_request"])
+        : undefined;
+
+  const conditions = [
+    eq(notifications.userId, viewer.id),
+    isNull(notifications.readAt),
+  ];
+
+  if (typeFilter) {
+    conditions.push(typeFilter);
+  }
+
   await db
     .update(notifications)
     .set({ readAt: new Date() })
-    .where(and(eq(notifications.userId, viewer.id), isNull(notifications.readAt)));
+    .where(and(...conditions));
 }
 
 export async function sessionPayload(user: AuthUser): Promise<SessionUser> {
@@ -701,7 +722,13 @@ export async function sessionPayload(user: AuthUser): Promise<SessionUser> {
       followers: sql<number>`(select count(*)::int from ${follows} where ${follows.followingId} = ${user.id} and ${follows.state} = 'accepted')`,
       following: sql<number>`(select count(*)::int from ${follows} where ${follows.followerId} = ${user.id} and ${follows.state} = 'accepted')`,
       moments: sql<number>`(select count(*)::int from ${moments} where ${moments.authorId} = ${user.id})`,
-      unreadNotifications: sql<number>`(select count(*)::int from ${notifications} where ${notifications.userId} = ${user.id} and ${notifications.readAt} is null)`,
+      unreadNotifications: sql<number>`(
+        select count(*)::int
+        from ${notifications}
+        where ${notifications.userId} = ${user.id}
+          and ${notifications.readAt} is null
+          and ${notifications.type} not in ('message', 'message_request')
+      )`,
       requests: sql<number>`(select count(*)::int from ${conversationMembers} where ${conversationMembers.userId} = ${user.id} and ${conversationMembers.state} = 'requested')`,
     })
     .from(users)

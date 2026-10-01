@@ -41,8 +41,12 @@ export default function NotificationsPage() {
   const [busy, setBusy] = useState(false);
 
   const items = (data?.notifications ?? []).filter((item) => {
-    if (filter === "all") return true;
-    if (filter === "messages") return item.type === "message" || item.type === "message_request";
+    if (filter === "all") {
+      return item.type !== "message" && item.type !== "message_request";
+    }
+    if (filter === "messages") {
+      return item.type === "message" || item.type === "message_request";
+    }
     if (filter === "requests") return item.type === "follow_request" || item.type === "follow" || item.type === "follow_accepted";
     return item.type === "like" || item.type === "comment" || item.type === "mention";
   });
@@ -50,7 +54,8 @@ export default function NotificationsPage() {
   async function markAll() {
     setBusy(true);
     try {
-      const result = await api.post<{ notifications: NotificationView[] }>("/api/notifications", {});
+      const scope = filter === "messages" ? "messages" : "general";
+      const result = await api.post<{ notifications: NotificationView[] }>("/api/notifications", { scope });
       setData(result);
       await refresh();
       show({ title: "All caught up", tone: "success" });
@@ -88,7 +93,7 @@ export default function NotificationsPage() {
           value={filter}
           onChange={setFilter}
           options={[
-            { value: "all", label: "All" },
+            { value: "all", label: "General" },
             { value: "social", label: "Likes & comments" },
             { value: "messages", label: "Messages" },
             { value: "requests", label: "Follows" },
@@ -105,7 +110,11 @@ export default function NotificationsPage() {
           <EmptyState
             icon="bell"
             title="Nothing here yet"
-            description="Follows, likes, comments, mentions and message requests will appear here."
+            description={
+              filter === "messages"
+                ? "New messages and message requests will appear here."
+                : "Follows, likes, comments and mentions will appear here."
+            }
             action={
               <Link href="/settings?tab=notifications" className="btn btn-secondary btn-sm">
                 Notification preferences
