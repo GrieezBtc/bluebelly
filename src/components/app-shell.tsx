@@ -90,7 +90,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/home" aria-label="Bemblo home">
             <BrandMark size={30} />
           </Link>
-          <BrandHeaderActions />
+          {pathname === "/home" ? <BrandHeaderActions /> : null}
         </header>
       ) : null}
 
