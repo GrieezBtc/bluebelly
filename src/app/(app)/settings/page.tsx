@@ -187,10 +187,10 @@ function SettingsInner() {
         <div className="flex flex-col gap-4">
           <section className="card card-pad flex flex-col gap-4">
             <h2 className="h3">Profile</h2>
-            <div className="flex items-center gap-4">
+            <div className="flex items-start gap-4">
               <Avatar user={{ name, avatarUrl, accent }} size="xl" />
-              <div className="flex flex-col gap-2">
-                <label className="btn btn-secondary btn-sm cursor-pointer">
+              <div className="min-w-0 flex-1 flex flex-col gap-2">
+                <label className="btn btn-secondary btn-sm w-full max-w-full cursor-pointer">
                   <Icon name="camera" size={16} /> Change photo
                   <input
                     type="file"
@@ -214,7 +214,7 @@ function SettingsInner() {
                     Remove photo
                   </button>
                 ) : (
-                  <div className="flex gap-1.5" role="radiogroup" aria-label="Avatar colour">
+                  <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Avatar colour">
                     {ACCENTS.map((option) => (
                       <button
                         key={option}
