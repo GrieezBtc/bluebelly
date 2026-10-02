@@ -95,7 +95,6 @@ export default function NotificationsPage() {
           options={[
             { value: "all", label: "General" },
             { value: "social", label: "Likes & comments" },
-            { value: "messages", label: "Messages" },
             { value: "requests", label: "Follows" },
           ]}
         />
