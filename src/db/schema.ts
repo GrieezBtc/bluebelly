@@ -188,16 +188,22 @@ export const momentShares = pgTable("moment_shares", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const conversations = pgTable("conversations", {
-  id: serial("id").primaryKey(),
-  kind: text("kind").$type<ConversationKind>().notNull(),
-  title: text("title"),
-  imageUrl: text("image_url"),
-  createdById: integer("created_by_id").notNull(),
-  directKey: text("direct_key"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  lastMessageAt: timestamp("last_message_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: serial("id").primaryKey(),
+    kind: text("kind").$type<ConversationKind>().notNull(),
+    title: text("title"),
+    imageUrl: text("image_url"),
+    createdById: integer("created_by_id").notNull(),
+    directKey: text("direct_key"),
+    membersMuted: boolean("members_muted").default(false).notNull(),
+    inviteToken: text("invite_token"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique("conversations_invite_token_unique").on(t.inviteToken)],
+);
 
 export const conversationMembers = pgTable(
   "conversation_members",

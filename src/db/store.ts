@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { and, desc, eq, gt, inArray, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -1061,6 +1062,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       expiryLabel: conversationExpiryLabel(conversation.kind),
       expiryExplanation: conversationExpiryExplanation(conversation.kind),
       messagePermissionBlocked: false,
+      membersMuted: conversation.kind === "group" ? conversation.membersMuted : false,
     },
     messages: messageViewsList,
   };
@@ -1140,6 +1142,10 @@ export async function sendMessage(
     .limit(1);
   if (!membership || membership.state === "declined" || membership.state === "left") throw new Error("forbidden");
 
+  if (conversation.kind === "group" && conversation.membersMuted && membership.role !== "admin") {
+    throw new Error("group_muted");
+  }
+
   const now = new Date();
   const expiresAt = conversation.kind === "group" ? new Date(now.getTime() + MESSAGE_EXPIRY.groupTtlMs) : null;
   const [created] = await db
@@ -1199,14 +1205,55 @@ export async function sendMessage(
   };
 }
 
+async function requireActiveConversationMember(viewer: AuthUser, conversationId: number) {
+  const [membership] = await db
+    .select()
+    .from(conversationMembers)
+    .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, viewer.id)))
+    .limit(1);
+  if (!membership || membership.state === "declined" || membership.state === "left") throw new Error("forbidden");
+  return membership;
+}
+
+async function requireGroupAdmin(viewer: AuthUser, conversationId: number) {
+  const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
+  if (!conversation) throw new Error("not_found");
+  const membership = await requireActiveConversationMember(viewer, conversationId);
+  if (conversation.kind !== "group" || membership.role !== "admin") throw new Error("admin_required");
+  return { conversation, membership };
+}
+
+export async function joinGroupByInvite(viewer: AuthUser, token: string) {
+  const [conversation] = await db
+    .select()
+    .from(conversations)
+    .where(and(eq(conversations.kind, "group"), eq(conversations.inviteToken, token)))
+    .limit(1);
+  if (!conversation) return { ok: false as const };
+
+  const [existing] = await db
+    .select()
+    .from(conversationMembers)
+    .where(and(eq(conversationMembers.conversationId, conversation.id), eq(conversationMembers.userId, viewer.id)))
+    .limit(1);
+  if (existing?.state === "active") return { ok: true as const, conversationId: conversation.id };
+  if (existing) {
+    await db.update(conversationMembers).set({ state: "active", joinedAt: new Date() }).where(eq(conversationMembers.id, existing.id));
+  } else {
+    await db.insert(conversationMembers).values({ conversationId: conversation.id, userId: viewer.id, role: "member", state: "active" });
+  }
+  return { ok: true as const, conversationId: conversation.id };
+}
+
 export async function respondToConversation(
   viewer: AuthUser,
   conversationId: number,
-  action: "accept" | "decline" | "leave" | "mute" | "unmute" | "rename",
+  action: "accept" | "decline" | "leave" | "mute" | "unmute" | "rename" | "add-member" | "promote" | "mute-members" | "unmute-members" | "invite",
   value?: string,
 ) {
   const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
   if (!conversation) return { ok: false as const };
+
   switch (action) {
     case "accept": {
       await db
@@ -1223,6 +1270,20 @@ export async function respondToConversation(
       return { ok: true as const, message: "Request declined. They are not told about this." };
     }
     case "leave": {
+      const membership = await requireActiveConversationMember(viewer, conversationId);
+      if (conversation.kind === "group" && membership.role === "admin") {
+        const admins = await db
+          .select({ id: conversationMembers.id })
+          .from(conversationMembers)
+          .where(
+            and(
+              eq(conversationMembers.conversationId, conversationId),
+              eq(conversationMembers.role, "admin"),
+              eq(conversationMembers.state, "active"),
+            ),
+          );
+        if (admins.length <= 1) throw new Error("last_admin");
+      }
       await db
         .update(conversationMembers)
         .set({ state: "left" })
@@ -1231,6 +1292,7 @@ export async function respondToConversation(
     }
     case "mute":
     case "unmute": {
+      await requireActiveConversationMember(viewer, conversationId);
       await db
         .update(conversationMembers)
         .set({ muted: action === "mute" })
@@ -1238,9 +1300,68 @@ export async function respondToConversation(
       return { ok: true as const, message: action === "mute" ? "Notifications muted." : "Notifications on." };
     }
     case "rename": {
-      if (conversation.kind !== "group" || !value) return { ok: false as const };
+      if (!value) return { ok: false as const };
+      await requireGroupAdmin(viewer, conversationId);
       await db.update(conversations).set({ title: value }).where(eq(conversations.id, conversationId));
       return { ok: true as const, message: "Group renamed." };
+    }
+    case "add-member": {
+      await requireGroupAdmin(viewer, conversationId);
+      const username = value?.trim().toLowerCase();
+      if (!username) return { ok: false as const };
+      const [target] = await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.username, username)).limit(1);
+      if (!target) throw new Error("user_not_found");
+      if (target.id === viewer.id) throw new Error("self_member");
+      const [existing] = await db
+        .select()
+        .from(conversationMembers)
+        .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, target.id)))
+        .limit(1);
+      if (existing?.state === "active" || existing?.state === "requested") throw new Error("already_member");
+      if (existing) {
+        await db.update(conversationMembers).set({ state: "active", role: "member", joinedAt: new Date() }).where(eq(conversationMembers.id, existing.id));
+      } else {
+        await db.insert(conversationMembers).values({ conversationId, userId: target.id, role: "member", state: "active" });
+      }
+      await createNotification({
+        userId: target.id,
+        type: "message",
+        actorId: viewer.id,
+        entityType: "conversation",
+        entityId: conversationId,
+        preview: `Added you to ${conversation.title ?? "a group"}`,
+      });
+      return { ok: true as const, message: `${target.name} was added to the group.` };
+    }
+    case "promote": {
+      await requireGroupAdmin(viewer, conversationId);
+      const username = value?.trim().toLowerCase();
+      if (!username) return { ok: false as const };
+      const [target] = await db
+        .select({ id: conversationMembers.id, role: conversationMembers.role, state: conversationMembers.state })
+        .from(conversationMembers)
+        .innerJoin(users, eq(users.id, conversationMembers.userId))
+        .where(and(eq(conversationMembers.conversationId, conversationId), eq(users.username, username)))
+        .limit(1);
+      if (!target || target.state !== "active") throw new Error("member_not_found");
+      if (target.role === "admin") return { ok: true as const, message: "That member is already an admin." };
+      await db.update(conversationMembers).set({ role: "admin" }).where(eq(conversationMembers.id, target.id));
+      return { ok: true as const, message: "Member promoted to admin." };
+    }
+    case "mute-members":
+    case "unmute-members": {
+      await requireGroupAdmin(viewer, conversationId);
+      await db.update(conversations).set({ membersMuted: action === "mute-members" }).where(eq(conversations.id, conversationId));
+      return { ok: true as const, message: action === "mute-members" ? "Members can no longer send messages. Admins can still send." : "Members can send messages again." };
+    }
+    case "invite": {
+      await requireGroupAdmin(viewer, conversationId);
+      let token = conversation.inviteToken;
+      if (!token) {
+        token = randomBytes(32).toString("base64url");
+        await db.update(conversations).set({ inviteToken: token }).where(eq(conversations.id, conversationId));
+      }
+      return { ok: true as const, message: "Invitation link ready.", invitePath: `/messages/invite/${token}` };
     }
     default:
       return { ok: false as const };

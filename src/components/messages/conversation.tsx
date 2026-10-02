@@ -44,6 +44,8 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [addMemberValue, setAddMemberValue] = useState("");
   const [messageMenu, setMessageMenu] = useState<MessageView | null>(null);
   const [now, setNow] = useState(Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -181,10 +183,37 @@ export function ConversationView({ conversationId }: { conversationId: number })
     }
   }
 
-  async function conversationAction(action: "accept" | "decline" | "leave" | "mute" | "unmute" | "rename", value?: string) {
+  async function conversationAction(
+    action:
+      | "accept"
+      | "decline"
+      | "leave"
+      | "mute"
+      | "unmute"
+      | "rename"
+      | "add-member"
+      | "promote"
+      | "mute-members"
+      | "unmute-members"
+      | "invite",
+    value?: string,
+  ) {
     try {
-      const result = await api.patch<{ message: string }>(`/api/conversations/${conversationId}`, { action, value });
-      show({ title: result.message, tone: "success" });
+      const result = await api.patch<{ message: string; invitePath?: string }>(
+        `/api/conversations/${conversationId}`,
+        { action, value },
+      );
+      if (result.invitePath) {
+        const inviteUrl = `${window.location.origin}${result.invitePath}`;
+        const copied = await copy(inviteUrl);
+        show({
+          title: copied ? "Invitation link copied" : "Invitation link ready",
+          description: copied ? undefined : inviteUrl,
+          tone: copied ? "success" : "info",
+        });
+      } else {
+        show({ title: result.message, tone: "success" });
+      }
       if (action === "decline" || action === "leave") {
         router.push("/messages");
       } else {
@@ -220,6 +249,9 @@ export function ConversationView({ conversationId }: { conversationId: number })
   if (!detail) return null;
   const { conversation, messages } = detail;
   const isRequest = conversation.state === "requested";
+  const currentMember = conversation.members.find((member) => member.id === user?.id);
+  const isGroupAdmin = conversation.kind === "group" && currentMember?.role === "admin";
+  const groupSendBlocked = conversation.kind === "group" && conversation.membersMuted && !isGroupAdmin;
 
   return (
     <div className="flex h-[calc(100dvh-var(--nav-height))] min-h-0 flex-col overflow-hidden md:h-dvh">
@@ -313,25 +345,40 @@ export function ConversationView({ conversationId }: { conversationId: number })
           <span className="body-sm">
             <Icon name="alert" size={14} className="mr-1 inline text-coral" /> Failed to send
           </span>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => send("text", failedDraft)}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={groupSendBlocked}
+            onClick={() => send("text", failedDraft)}
+          >
             Retry
           </button>
         </div>
       ) : null}
 
+      {groupSendBlocked ? (
+        <div className="mx-3 mb-2 rounded-md border border-line bg-surface px-3 py-2 text-center body-sm">
+          Only admins can send messages while this group is muted.
+        </div>
+      ) : null}
       <form
         className="chat-input safe-bottom z-10 shrink-0"
         onSubmit={(event) => {
           event.preventDefault();
+          if (groupSendBlocked) return;
           if (draft.trim()) void send("text", draft.trim());
         }}
       >
-        <label className="btn-icon" aria-label="Attach a photo or video">
+        <label
+          className={cn("btn-icon", groupSendBlocked && "pointer-events-none opacity-50")}
+          aria-label="Attach a photo or video"
+        >
           {uploading ? <Spinner /> : <Icon name="image" size={22} />}
           <input
             type="file"
             accept="image/*,video/*"
             className="sr-only"
+            disabled={groupSendBlocked}
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) void uploadAndSend(file);
@@ -346,11 +393,12 @@ export function ConversationView({ conversationId }: { conversationId: number })
           className="textarea flex-1"
           rows={1}
           value={draft}
-          placeholder="Write a message…"
+          placeholder={groupSendBlocked ? "Messaging is disabled for members" : "Write a message…"}
+          disabled={groupSendBlocked}
           onChange={(event) => setDraft(event.target.value)}
         />
         {draft.trim() ? (
-          <button type="submit" className="btn btn-primary" disabled={sending} aria-label="Send message">
+          <button type="submit" className="btn btn-primary" disabled={sending || groupSendBlocked} aria-label="Send message">
             {sending ? <Spinner /> : <Icon name="send" size={18} />}
           </button>
         ) : (
@@ -358,7 +406,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
             type="button"
             className={cn("btn", recording ? "btn-danger" : "btn-secondary")}
             onClick={toggleRecording}
-            disabled={!recorderSupported || uploading}
+            disabled={!recorderSupported || uploading || groupSendBlocked}
             aria-label={recording ? "Stop recording" : "Record a voice message"}
             title={recorderSupported ? undefined : "Voice notes are not supported in this browser"}
           >
@@ -396,6 +444,11 @@ export function ConversationView({ conversationId }: { conversationId: number })
                         {member.state === "requested" ? " · request pending" : ""}
                       </span>
                     </Link>
+                    {isGroupAdmin && member.id !== user?.id && member.role !== "admin" && member.state === "active" ? (
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => void conversationAction("promote", member.username)}>
+                        Make admin
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -417,18 +470,26 @@ export function ConversationView({ conversationId }: { conversationId: number })
           </button>
           {conversation.kind === "group" ? (
             <>
-              <button
-                type="button"
-                className="list-row rounded-md"
-                onClick={() => {
-                  setRenameValue(conversation.title);
-                  setOptionsOpen(false);
-                  setRenameOpen(true);
-                }}
-              >
-                <Icon name="edit" size={20} />
-                <span className="flex-1 text-left text-sm font-semibold">Rename group</span>
-              </button>
+              {isGroupAdmin ? (
+                <>
+                  <button type="button" className="list-row rounded-md" onClick={() => { setOptionsOpen(false); setAddMemberOpen(true); }}>
+                    <Icon name="user-plus" size={20} />
+                    <span className="flex-1 text-left text-sm font-semibold">Add members</span>
+                  </button>
+                  <button type="button" className="list-row rounded-md" onClick={() => void conversationAction("invite")}>
+                    <Icon name="link" size={20} />
+                    <span className="flex-1 text-left text-sm font-semibold">Copy invitation link</span>
+                  </button>
+                  <button type="button" className="list-row rounded-md" onClick={() => void conversationAction(conversation.membersMuted ? "unmute-members" : "mute-members")}>
+                    <Icon name="mute" size={20} />
+                    <span className="flex-1 text-left text-sm font-semibold">{conversation.membersMuted ? "Unmute members" : "Mute members"}</span>
+                  </button>
+                  <button type="button" className="list-row rounded-md" onClick={() => { setRenameValue(conversation.title); setOptionsOpen(false); setRenameOpen(true); }}>
+                    <Icon name="edit" size={20} />
+                    <span className="flex-1 text-left text-sm font-semibold">Rename group</span>
+                  </button>
+                </>
+              ) : null}
               <button
                 type="button"
                 className="list-row rounded-md"
@@ -457,6 +518,16 @@ export function ConversationView({ conversationId }: { conversationId: number })
             <Icon name="help" size={20} />
             <span className="flex-1 text-left text-sm font-semibold">Get help from Support</span>
           </Link>
+        </div>
+      </Overlay>
+
+      <Overlay open={addMemberOpen} onClose={() => setAddMemberOpen(false)} title="Add a member" variant="dialog">
+        <Field label="Username" htmlFor="add-group-member">
+          <input id="add-group-member" className="input" value={addMemberValue} onChange={(event) => setAddMemberValue(event.target.value)} placeholder="username" />
+        </Field>
+        <div className="flex justify-end gap-2 pt-4">
+          <button type="button" className="btn btn-secondary" onClick={() => setAddMemberOpen(false)}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={addMemberValue.trim().length < 1} onClick={() => void conversationAction("add-member", addMemberValue.trim())}>Add member</button>
         </div>
       </Overlay>
 

@@ -1,4 +1,4 @@
-import { fail, forbidden, notFound, ok, readJson, requireString } from "@/lib/api";
+import { conflict, fail, forbidden, notFound, ok, readJson, requireString } from "@/lib/api";
 import { requireVerifiedUser } from "@/lib/auth";
 import {
   getConversationDetail,
@@ -72,6 +72,9 @@ export async function POST(request: Request, { params }: Params) {
     if (error instanceof Error && error.message === "forbidden") {
       return fail(forbidden("You are not part of this conversation.", "not_a_member"));
     }
+    if (error instanceof Error && error.message === "group_muted") {
+      return fail(forbidden("Only admins can send while this group is muted.", "group_muted"));
+    }
     return fail(error);
   }
 }
@@ -83,19 +86,46 @@ export async function PATCH(request: Request, { params }: Params) {
     const conversationId = Number(id);
     const user = await requireVerifiedUser(request);
     const body = await readJson<{ action?: string; value?: string }>(request);
-    const allowed = ["accept", "decline", "leave", "mute", "unmute", "rename"] as const;
+    const allowed = [
+      "accept",
+      "decline",
+      "leave",
+      "mute",
+      "unmute",
+      "rename",
+      "add-member",
+      "promote",
+      "mute-members",
+      "unmute-members",
+      "invite",
+    ] as const;
     if (!allowed.includes(body.action as (typeof allowed)[number])) {
       throw forbidden("Unsupported action.", "unsupported_action");
     }
-    const result = await respondToConversation(
-      user,
-      conversationId,
-      body.action as (typeof allowed)[number],
-      typeof body.value === "string" ? requireString(body.value, "Group name", { min: 2, max: 60 }) : undefined,
-    );
+    const action = body.action as (typeof allowed)[number];
+    let value: string | undefined;
+
+    if (typeof body.value === "string") {
+      if (action === "rename") {
+        value = requireString(body.value, "Group name", { min: 2, max: 60 });
+      } else if (action === "add-member" || action === "promote") {
+        value = requireString(body.value, "Username", { min: 1, max: 50 }).trim().toLowerCase();
+      }
+    }
+
+    const result = await respondToConversation(user, conversationId, action, value);
     if (!result.ok) throw notFound("Conversation not found.");
-    return ok({ message: result.message });
+    return ok({
+      message: result.message,
+      ...(result.ok && "invitePath" in result && result.invitePath ? { invitePath: result.invitePath } : {}),
+    });
   } catch (error) {
+    if (error instanceof Error && error.message === "admin_required") return fail(forbidden("Only group admins can do that.", "admin_required"));
+    if (error instanceof Error && error.message === "last_admin") return fail(forbidden("Promote another admin before leaving the group.", "last_admin"));
+    if (error instanceof Error && error.message === "user_not_found") return fail(notFound("That username was not found."));
+    if (error instanceof Error && error.message === "already_member") return fail(conflict("That person is already in the group.", "already_member"));
+    if (error instanceof Error && error.message === "member_not_found") return fail(notFound("That active member was not found."));
+    if (error instanceof Error && error.message === "self_member") return fail(conflict("You are already in this group.", "self_member"));
     return fail(error);
   }
 }

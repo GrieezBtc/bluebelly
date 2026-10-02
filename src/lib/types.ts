@@ -139,6 +139,7 @@ export type ConversationDetail = {
     expiryLabel: string;
     expiryExplanation: string;
     messagePermissionBlocked: boolean;
+    membersMuted: boolean;
   };
   messages: MessageView[];
 };
