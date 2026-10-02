@@ -123,10 +123,12 @@ export function Composer({
   onPublished,
   redirectTo = "/moments",
   compact,
+  variant = "default",
 }: {
   onPublished?: () => void;
   redirectTo?: string;
   compact?: boolean;
+  variant?: "default" | "create";
 }) {
   const router = useRouter();
   const { show } = useToast();
@@ -134,6 +136,7 @@ export function Composer({
   const [kind, setKind] = useState<"text" | "photo" | "video">("text");
   const [body, setBody] = useState("");
   const [audience, setAudience] = useState<MomentAudience | null>(null);
+  const [audienceOpen, setAudienceOpen] = useState(false);
   const [media, setMedia] = useState<{ url: string; kind: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -202,16 +205,33 @@ export function Composer({
   }
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={publish}>
-      <div className="flex items-center gap-3">
-        <Avatar user={user ?? { name: "You" }} size="md" />
-        <div className="min-w-0">
-          <p className="font-semibold">{user?.name ?? "You"}</p>
-          <p className="caption">Sharing as @{user?.username ?? "you"}</p>
+    <form className={cn("flex flex-col gap-4", variant === "create" && "create-composer")} onSubmit={publish}>
+      {variant === "create" ? (
+        <div className="create-composer__header">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.push("/moments")}>
+            Cancel
+          </button>
+          <h1 className="text-base font-semibold">Create a Moment</h1>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={busy || uploading}>
+            {busy ? <Spinner /> : null}
+            Publish
+          </button>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <Avatar user={user ?? { name: "You" }} size="md" />
+          <div className="min-w-0">
+            <p className="font-semibold">{user?.name ?? "You"}</p>
+            <p className="caption">Sharing as @{user?.username ?? "you"}</p>
+          </div>
+        </div>
+      )}
 
-      <div className="scroll-x" role="tablist" aria-label="Moment type">
+      <div
+        className={cn("scroll-x", variant === "create" && "create-composer__types")}
+        role="tablist"
+        aria-label="Moment type"
+      >
         {(
           [
             { value: "text", label: "Text", icon: "edit" as IconName },
@@ -233,17 +253,32 @@ export function Composer({
         ))}
       </div>
 
-      <Field label={kind === "text" ? "What is on your mind?" : "Caption (optional)"} htmlFor="moment-body">
-        <textarea
-          id="moment-body"
-          className="textarea"
-          rows={compact ? 3 : 5}
-          maxLength={2000}
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          placeholder={kind === "text" ? "Share a thought with your audience…" : "Add a caption…"}
-        />
-      </Field>
+      {variant === "create" ? (
+        <div className="create-composer__editor">
+          <Avatar user={user ?? { name: "You" }} size="md" />
+          <textarea
+            id="moment-body"
+            className="create-composer__textarea"
+            rows={compact ? 3 : 7}
+            maxLength={2000}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder={kind === "text" ? "What is on your mind?" : "Add a caption…"}
+          />
+        </div>
+      ) : (
+        <Field label={kind === "text" ? "What is on your mind?" : "Caption (optional)"} htmlFor="moment-body">
+          <textarea
+            id="moment-body"
+            className="textarea"
+            rows={compact ? 3 : 5}
+            maxLength={2000}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder={kind === "text" ? "Share a thought with your audience…" : "Add a caption…"}
+          />
+        </Field>
+      )}
 
       {kind !== "text" ? (
         <div className="flex flex-col gap-3">
@@ -286,38 +321,107 @@ export function Composer({
         </div>
       ) : null}
 
-      <section aria-labelledby="audience-heading" className="flex flex-col gap-2">
-        <div className="section-title">
-          <h2 className="field-label" id="audience-heading">
-            Who can see this?
-          </h2>
-          <span className="caption">Required before publishing</span>
-        </div>
-        <div className="flex flex-col gap-2">
-          {(Object.keys(AUDIENCE_COPY) as MomentAudience[]).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setAudience(option)}
-              aria-pressed={audience === option}
-              className={cn("card card-pad text-left", audience === option && "border-brand")}
-              style={audience === option ? { background: "var(--brand-soft)" } : undefined}
-            >
-              <span className="flex items-center gap-2 font-semibold">
-                <Icon name={AUDIENCE_COPY[option].icon as IconName} size={18} />
-                {AUDIENCE_COPY[option].label}
-                {audience === option ? <Icon name="check" size={16} className="ml-auto text-brand" /> : null}
+      {variant === "create" ? (
+        <section aria-labelledby="audience-heading" className="create-composer__audience">
+          <button
+            type="button"
+            className="create-composer__audience-trigger"
+            aria-expanded={audienceOpen}
+            aria-controls="create-audience-options"
+            onClick={() => setAudienceOpen((open) => !open)}
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="empty-state__icon">
+                <Icon
+                  name={audience ? AUDIENCE_COPY[audience].icon as IconName : "globe"}
+                  size={18}
+                />
               </span>
-              <span className="body-sm block pt-1">{AUDIENCE_COPY[option].description}</span>
-              {audience === option && user?.profilePrivacy === "private" ? (
-                <span className="caption block pt-1">
-                  Your profile is Private, so Public Moments are still limited to approved followers.
+              <span className="min-w-0 text-left">
+                <span className="caption block">Audience</span>
+                <span className="block font-semibold">
+                  {audience ? AUDIENCE_COPY[audience].label : "Choose who can see this"}
                 </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      </section>
+              </span>
+            </span>
+            <Icon name="chevron-down" size={18} className={cn("transition-transform", audienceOpen && "rotate-180")} />
+          </button>
+
+          {audienceOpen ? (
+            <div id="create-audience-options" className="create-composer__audience-options">
+              {(Object.keys(AUDIENCE_COPY) as MomentAudience[]).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    setAudience(option);
+                    setAudienceOpen(false);
+                  }}
+                  aria-pressed={audience === option}
+                  className={cn(
+                    "card card-pad text-left",
+                    audience === option && "border-brand",
+                  )}
+                  style={audience === option ? { background: "var(--brand-soft)" } : undefined}
+                >
+                  <span className="flex items-center gap-2 font-semibold">
+                    <Icon name={AUDIENCE_COPY[option].icon as IconName} size={18} />
+                    {AUDIENCE_COPY[option].label}
+                    {audience === option ? (
+                      <Icon name="check" size={16} className="ml-auto text-brand" />
+                    ) : null}
+                  </span>
+                  <span className="body-sm block pt-1">
+                    {AUDIENCE_COPY[option].description}
+                  </span>
+                  {audience === option && user?.profilePrivacy === "private" ? (
+                    <span className="caption block pt-1">
+                      Your profile is Private, so Public Moments are still limited to approved followers.
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : (
+        <section aria-labelledby="audience-heading" className="flex flex-col gap-2">
+          <div className="section-title">
+            <h2 className="field-label" id="audience-heading">
+              Who can see this?
+            </h2>
+            <span className="caption">Required before publishing</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {(Object.keys(AUDIENCE_COPY) as MomentAudience[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setAudience(option)}
+                aria-pressed={audience === option}
+                className={cn("card card-pad text-left", audience === option && "border-brand")}
+                style={audience === option ? { background: "var(--brand-soft)" } : undefined}
+              >
+                <span className="flex items-center gap-2 font-semibold">
+                  <Icon name={AUDIENCE_COPY[option].icon as IconName} size={18} />
+                  {AUDIENCE_COPY[option].label}
+                  {audience === option ? (
+                    <Icon name="check" size={16} className="ml-auto text-brand" />
+                  ) : null}
+                </span>
+                <span className="body-sm block pt-1">
+                  {AUDIENCE_COPY[option].description}
+                </span>
+                {audience === option && user?.profilePrivacy === "private" ? (
+                  <span className="caption block pt-1">
+                    Your profile is Private, so Public Moments are still limited to approved followers.
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {publishError ? (
         <div className="banner banner-danger" role="alert">
@@ -326,14 +430,18 @@ export function Composer({
         </div>
       ) : null}
 
-      <InfoBanner tone="info" icon="info">
-        Moments never expire on their own. Unlike messages, they stay available until you delete them.
-      </InfoBanner>
+      {variant !== "create" ? (
+        <InfoBanner tone="info" icon="info">
+          Moments never expire on their own. Unlike messages, they stay available until you delete them.
+        </InfoBanner>
+      ) : null}
 
-      <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy || uploading}>
-        {busy ? <Spinner /> : <Icon name="send" size={18} />}
-        {audience ? `Publish as ${AUDIENCE_COPY[audience].label}` : "Publish"}
-      </button>
+      {variant !== "create" ? (
+        <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy || uploading}>
+          {busy ? <Spinner /> : <Icon name="send" size={18} />}
+          {audience ? `Publish as ${AUDIENCE_COPY[audience].label}` : "Publish"}
+        </button>
+      ) : null}
     </form>
   );
 }

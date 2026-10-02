@@ -459,6 +459,112 @@ body {
   padding: 0 0.25rem 0.5rem;
 }
 
+.create-composer {
+  max-width: 680px;
+  margin-inline: auto;
+}
+
+.create-composer__header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+}
+
+.create-composer__header > :first-child {
+  justify-self: start;
+}
+
+.create-composer__header > :last-child {
+  justify-self: end;
+}
+
+.create-composer__types {
+  justify-content: center;
+}
+
+.create-composer__editor {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.create-composer__textarea {
+  width: 100%;
+  min-height: 180px;
+  padding: 0.25rem 0;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.create-composer__textarea::placeholder {
+  color: var(--ink-3);
+}
+
+.create-composer__textarea:focus {
+  outline: 0;
+}
+
+@media (max-width: 640px) {
+  .create-composer__textarea {
+    min-height: 150px;
+    font-size: 1rem;
+  }
+}
+
+.create-composer__audience {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.create-composer__audience-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 64px;
+  padding: 0.5rem 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.create-composer__audience-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 0 0.75rem;
+}
+
+.create-composer__audience-options .card {
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  .create-composer {
+    max-width: none;
+  }
+
+  .create-composer__header {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .create-composer__header h1 {
+    text-align: center;
+    font-size: 0.9375rem;
+  }
+}
+
 /* ============================================================
    Chips, badges, pills
    ============================================================ */
