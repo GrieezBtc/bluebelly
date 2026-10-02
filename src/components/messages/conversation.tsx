@@ -222,8 +222,8 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const isRequest = conversation.state === "requested";
 
   return (
-    <div className="flex min-h-[calc(100dvh-var(--nav-height))] flex-col md:min-h-dvh">
-      <header className="sticky-top flex items-center gap-2 px-2 py-2">
+    <div className="flex h-[calc(100dvh-var(--nav-height))] min-h-0 flex-col overflow-hidden md:h-dvh">
+      <header className="sticky-top z-10 flex shrink-0 items-center gap-2 px-2 py-2">
         <button type="button" className="btn-icon md:hidden" onClick={() => router.push("/messages")} aria-label="Back to Messages">
           <Icon name="chevron-left" size={22} />
         </button>
@@ -246,7 +246,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-3 pb-2 md:px-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 md:px-6">
         {isRequest ? (
           <div className="py-3">
             <InfoBanner tone="brand" icon="request" title="Message request">
@@ -320,7 +320,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
       ) : null}
 
       <form
-        className="chat-input safe-bottom sticky bottom-0 md:static"
+        className="chat-input safe-bottom z-10 shrink-0"
         onSubmit={(event) => {
           event.preventDefault();
           if (draft.trim()) void send("text", draft.trim());
