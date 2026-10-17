@@ -212,3 +212,33 @@ export async function sendPasswordResetEmail({
 
   return result.data;
 }
+
+export async function sendNotificationEmail({
+  to,
+  title,
+  body,
+  url,
+}: {
+  to: string;
+  title: string;
+  body: string;
+  url: string;
+}) {
+  const resend = getResend();
+  const result = await resend.emails.send({
+    from: fromAddress(),
+    to,
+    subject: title,
+    html: emailLayout({
+      title,
+      intro: body,
+      buttonText: "Open Bemblo",
+      buttonUrl: url,
+      fallbackLabel: "Or copy this link:",
+      expiryText: "You can turn email notifications off anytime in Settings > Notifications.",
+    }),
+    text: [title, "", body, "", `Open Bemblo: ${url}`, "", "Turn these emails off in Settings > Notifications."].join("\n"),
+  });
+  if (result.error) throw new Error(result.error.message);
+  return result.data;
+}

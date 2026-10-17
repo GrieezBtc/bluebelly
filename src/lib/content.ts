@@ -161,7 +161,7 @@ export const LEGAL_DOCS = {
 
 export const NOTIFICATION_PREF_COPY = [
   { id: "push", label: "Push notifications", blurb: "Alerts on this device while Bemblo runs in the background." },
-  { id: "email", label: "Email notifications", blurb: "Important account and security emails." },
+  { id: "email", label: "Email notifications", blurb: "Emails for new messages, comments and follows when you are away (at most one every 15 minutes), plus account and security emails." },
   { id: "messages", label: "Message notifications", blurb: "New messages, message requests and views." },
   { id: "social", label: "Social notifications", blurb: "Likes, comments and mentions on your Moments." },
   { id: "requests", label: "Follow activity", blurb: "New followers, follow requests and approvals." },

@@ -92,13 +92,23 @@ self.addEventListener("push", (event) => {
     /* keep defaults */
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: "/icons/bemblo-icon.png",
-      badge: "/icons/bemblo-icon.png",
-      data: { url: payload.url },
-      tag: payload.tag ?? "bemblo",
-    }),
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      // The in-app badges already update while Bemblo is open and focused, so skip the pop-up.
+      const focused = windows.some((w) => w.focused && w.visibilityState === "visible");
+      if (focused) {
+        windows.forEach((w) => w.postMessage({ type: "bemblo:push", payload }));
+        return;
+      }
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: "/icons/bemblo-icon.png",
+        badge: "/icons/bemblo-icon.png",
+        data: { url: payload.url },
+        tag: payload.tag ?? "bemblo",
+        renotify: true,
+      });
+    })(),
   );
 });
 

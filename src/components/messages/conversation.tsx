@@ -47,7 +47,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [addMemberValue, setAddMemberValue] = useState("");
   const [messageMenu, setMessageMenu] = useState<MessageView | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);

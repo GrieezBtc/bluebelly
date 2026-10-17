@@ -38,7 +38,7 @@ export default function VerifyRequiredPage() {
           I verified my email — log in
         </Link>
         <Link href="/support" className="btn btn-secondary btn-block">
-          I didn't receive the email
+          I didn&apos;t receive the email
         </Link>
       </div>
 

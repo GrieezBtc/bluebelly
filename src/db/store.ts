@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { after } from "next/server";
 import { and, desc, eq, gt, inArray, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -49,6 +50,8 @@ import {
 } from "@/lib/privacy";
 import { deleteAsset } from "@/lib/storage";
 import { timeLeftLabel } from "@/lib/utils";
+import { sendPushToUser } from "@/lib/push";
+import { sendNotificationEmail } from "@/lib/email";
 import type { AuthUser } from "@/lib/auth";
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
@@ -624,6 +627,81 @@ export async function createNotification(input: {
     entityId: input.entityId ?? null,
     preview: input.preview ?? null,
   });
+
+  // "Viewed your message" receipts stay in-app only.
+  if (input.preview === "Viewed your message") return;
+  const delivery = deliverNotification(input, prefs).catch((error) => console.error("[bemblo:notify]", error));
+  try {
+    after(delivery); // keep the serverless function alive until push/email finish
+  } catch {
+    /* outside a request scope: the promise simply runs on its own */
+  }
+}
+
+function notificationCopy(type: NotificationView["type"], actorName: string, preview: string | null) {
+  switch (type) {
+    case "message":
+      return { title: actorName, body: preview || "Sent you a message" };
+    case "message_request":
+      return { title: actorName, body: preview || "Sent you a message request" };
+    case "like":
+      return { title: actorName, body: "Liked your Moment" };
+    case "comment":
+      return { title: `${actorName} commented`, body: preview || "Commented on your Moment" };
+    case "mention":
+      return { title: actorName, body: preview || "Shared your Moment" };
+    case "follow":
+      return { title: actorName, body: "Started following you" };
+    case "follow_request":
+      return { title: actorName, body: "Requested to follow you" };
+    case "follow_accepted":
+      return { title: actorName, body: "Approved your follow request" };
+    default:
+      return { title: "Bemblo", body: preview || "You have new activity." };
+  }
+}
+
+function notificationPath(input: { entityType?: string | null; entityId?: number | null }, actorUsername: string | null) {
+  if (input.entityType === "conversation" && input.entityId) return `/messages/${input.entityId}`;
+  if (input.entityType === "moment" && input.entityId) return `/moments/${input.entityId}`;
+  if (input.entityType === "user" && actorUsername) return `/profile/${actorUsername}`;
+  return "/notifications";
+}
+
+const EMAIL_COOLDOWN_MINUTES = 15;
+
+async function deliverNotification(
+  input: { userId: number; type: NotificationView["type"]; actorId?: number | null; entityType?: string | null; entityId?: number | null; preview?: string | null },
+  prefs: NotificationPrefs,
+) {
+  const [actor] = input.actorId
+    ? await db.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, input.actorId)).limit(1)
+    : [];
+  const copy = notificationCopy(input.type, actor?.name ?? "Someone", input.preview ?? null);
+  const path = notificationPath(input, actor?.username ?? null);
+
+  if (prefs.push) {
+    await sendPushToUser(input.userId, { ...copy, url: path, tag: `${input.type}-${input.entityType ?? "x"}-${input.entityId ?? 0}` });
+  }
+
+  // Email: skip likes (too noisy) and rate-limit to one email per cooldown window.
+  if (prefs.email && input.type !== "like") {
+    const claimed = await db
+      .update(users)
+      .set({ lastEmailNotifiedAt: new Date() })
+      .where(
+        and(
+          eq(users.id, input.userId),
+          sql`${users.emailVerifiedAt} is not null`,
+          sql`(${users.lastEmailNotifiedAt} is null or ${users.lastEmailNotifiedAt} < now() - interval '${sql.raw(String(EMAIL_COOLDOWN_MINUTES))} minutes')`,
+        ),
+      )
+      .returning({ email: users.email });
+    if (claimed[0]) {
+      const base = (process.env.BEMBLO_PUBLIC_URL ?? "").replace(/\/$/, "");
+      await sendNotificationEmail({ to: claimed[0].email, title: copy.title === "Bemblo" ? "New activity on Bemblo" : `${copy.title} on Bemblo`, body: copy.body, url: `${base}${path}` });
+    }
+  }
 }
 
 export async function listNotifications(viewer: AuthUser): Promise<NotificationView[]> {

@@ -22,6 +22,7 @@ import { api, useQuery } from "@/lib/client";
 import { useSession } from "@/components/providers";
 import { ACCENTS, USERNAME_RULES } from "@/lib/utils";
 import { MESSAGE_PERMISSION_COPY, PRIVACY_SWITCH_COPY } from "@/lib/privacy";
+import { disablePushOnDevice, enablePushOnDevice } from "@/lib/push-client";
 import { NOTIFICATION_PREF_COPY, SUPPORT_TOPICS } from "@/lib/content";
 import type { MessagePermission, NotificationPrefs, UserSummary } from "@/lib/types";
 
@@ -145,20 +146,19 @@ function SettingsInner() {
   }
 
   async function enablePush() {
-    if (typeof window === "undefined" || !("Notification" in window)) {
-      show({ title: "Push not supported here", description: "Install Bemblo or use a browser with notification support.", tone: "info" });
+    const result = await enablePushOnDevice();
+    if (result.ok) {
+      show({ title: "Push notifications on", description: "This device will now get pop-up alerts for messages, comments, likes and follows.", tone: "success" });
+      void patch({ notificationPrefs: { push: true } }, "Preferences saved");
       return;
     }
-    const permission = await Notification.requestPermission();
-    show({
-      title: permission === "granted" ? "Push notifications on" : "Push not enabled",
-      description:
-        permission === "granted"
-          ? "Bemblo will deliver alerts through the service worker when your browser allows it."
-          : "You can enable notifications in your browser settings at any time.",
-      tone: permission === "granted" ? "success" : "info",
-    });
-    if (permission === "granted") void patch({ notificationPrefs: { push: true } }, "Preferences saved");
+    const copy = {
+      unsupported: "This browser does not support push. On iPhone, add Bemblo to your Home Screen first.",
+      denied: "Notifications are blocked. Allow them for Bemblo in your browser or phone settings, then try again.",
+      not_configured: "Push is not configured on the server yet.",
+      error: result.message ?? "Something went wrong. Please try again.",
+    }[result.reason];
+    show({ title: "Push not enabled", description: copy, tone: "info" });
   }
 
   return (
@@ -638,12 +638,19 @@ function SettingsInner() {
                   <Switch
                     label={pref.label}
                     checked={Boolean(user.notificationPrefs[pref.id as keyof NotificationPrefs])}
-                    onChange={(next) =>
-                      patch(
+                    onChange={(next) => {
+                      if (pref.id === "push") {
+                        if (next) {
+                          void enablePush();
+                          return;
+                        }
+                        void disablePushOnDevice();
+                      }
+                      return patch(
                         { notificationPrefs: { ...user.notificationPrefs, [pref.id]: next } },
                         next ? `${pref.label} on` : `${pref.label} off`,
-                      )
-                    }
+                      );
+                    }}
                   />
                 </li>
               ))}

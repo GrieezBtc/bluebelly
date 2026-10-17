@@ -67,6 +67,7 @@ export const users = pgTable(
     verified: boolean("verified").default(false).notNull(),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     rememberUnviewedMessages: boolean("retain_unviewed_messages").default(false).notNull(),
+    lastEmailNotifiedAt: timestamp("last_email_notified_at", { withTimezone: true }),
     onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
     lastActiveAt: timestamp("last_active_at", { withTimezone: true }).defaultNow().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -272,6 +273,21 @@ export const notifications = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("notifications_user_idx").on(t.userId)],
+);
+
+/** Web Push subscriptions: one row per browser/device a user enabled alerts on. */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull(),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique("push_subscriptions_endpoint_unique").on(t.endpoint), index("push_subscriptions_user_idx").on(t.userId)],
 );
 
 export const reports = pgTable("reports", {
