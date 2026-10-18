@@ -51,6 +51,7 @@ import {
 import { deleteAsset } from "@/lib/storage";
 import { timeLeftLabel } from "@/lib/utils";
 import { sendPushToUser } from "@/lib/push";
+import { generateShareCode, isValidShareCode } from "@/lib/share";
 import { sendNotificationEmail } from "@/lib/email";
 import type { AuthUser } from "@/lib/auth";
 
@@ -280,6 +281,7 @@ export async function applyFollowAction(
 
 const momentSelect = (viewerId: number) => ({
   id: moments.id,
+  shareCode: moments.shareCode,
   kind: moments.kind,
   body: moments.body,
   mediaUrl: moments.mediaUrl,
@@ -305,6 +307,7 @@ const momentSelect = (viewerId: number) => ({
 
 type MomentRow = {
   id: number;
+  shareCode: string | null;
   kind: MomentKind;
   body: string;
   mediaUrl: string | null;
@@ -331,6 +334,7 @@ type MomentRow = {
 function mapMoment(row: MomentRow, viewerId: number | null): MomentView {
   return {
     id: row.id,
+    shareCode: row.shareCode,
     kind: row.kind,
     body: row.body,
     mediaUrl: row.mediaUrl,
@@ -505,21 +509,34 @@ export async function createMomentRecord(input: {
   mediaHeight?: number | null;
   audience: MomentAudience;
 }) {
-  const [created] = await db
-    .insert(moments)
-    .values({
-      authorId: input.authorId,
-      kind: input.kind,
-      body: input.body,
-      mediaUrl: input.mediaUrl ?? null,
-      posterUrl: input.posterUrl ?? null,
-      mediaWidth: input.mediaWidth ?? null,
-      mediaHeight: input.mediaHeight ?? null,
-      audience: input.audience,
-      audienceLocked: input.audience === "only_me",
-    })
-    .returning();
-  return created;
+  const values = {
+    authorId: input.authorId,
+    kind: input.kind,
+    body: input.body,
+    mediaUrl: input.mediaUrl ?? null,
+    posterUrl: input.posterUrl ?? null,
+    mediaWidth: input.mediaWidth ?? null,
+    mediaHeight: input.mediaHeight ?? null,
+    audience: input.audience,
+    audienceLocked: input.audience === "only_me",
+  };
+  // Retry on the (very unlikely) chance of a share-code collision.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const inserted = await db
+      .insert(moments)
+      .values({ ...values, shareCode: generateShareCode() })
+      .onConflictDoNothing({ target: moments.shareCode })
+      .returning();
+    if (inserted[0]) return inserted[0];
+  }
+  throw new Error("Could not allocate a share code.");
+}
+
+/** Look up a Moment by its public share code, applying the normal visibility rules. */
+export async function getMomentByShareCode(viewerId: number | null, code: string) {
+  if (!isValidShareCode(code)) return null;
+  const [row] = await db.select({ id: moments.id }).from(moments).where(eq(moments.shareCode, code)).limit(1);
+  return row ? getMoment(viewerId, row.id) : null;
 }
 
 export async function toggleLike(viewer: AuthUser, momentId: number, like: boolean) {

@@ -38,7 +38,7 @@ type ProfilePayload = {
     canViewFollowers: boolean;
     profilePrivacy: "public" | "private";
   };
-  moments: { id: number; kind: "text" | "photo" | "video"; body: string; mediaUrl: string | null; posterUrl: string | null; mediaWidth: number | null; mediaHeight: number | null; audience: "public" | "followers" | "only_me"; audienceLocked: boolean; createdAt: string; author: PublicUser; likeCount: number; commentCount: number; shareCount: number; likedByMe: boolean; isMine: boolean; effectiveAudience: "public" | "followers" | "only_me" | "hidden" }[];
+  moments: { id: number; shareCode: string | null; kind: "text" | "photo" | "video"; body: string; mediaUrl: string | null; posterUrl: string | null; mediaWidth: number | null; mediaHeight: number | null; audience: "public" | "followers" | "only_me"; audienceLocked: boolean; createdAt: string; author: PublicUser; likeCount: number; commentCount: number; shareCount: number; likedByMe: boolean; isMine: boolean; effectiveAudience: "public" | "followers" | "only_me" | "hidden" }[];
   followersPreview: { id: number; username: string; name: string; avatarUrl: string | null; accent: string; relation: RelationState }[];
   pendingRequests: UserSummary[];
 };

@@ -74,7 +74,7 @@ export function MomentCard({
   }
 
   async function shareLink() {
-    const ok = await copy(`${window.location.origin}/p/${moment.id}`);
+    const ok = await copy(shareUrl(moment));
     show({
       title: ok ? "Link copied" : "Copy unavailable",
       description: ok ? "Anyone who can see this Moment can open the link." : "Your browser blocked clipboard access.",
@@ -445,6 +445,13 @@ function CommentsSheet({
   );
 }
 
+/** Public link for a Moment: /moment/p/<code> (falls back to the in-app link for very old Moments). */
+function shareUrl(moment: MomentView) {
+  return moment.shareCode
+    ? `${window.location.origin}/moment/p/${moment.shareCode}`
+    : `${window.location.origin}/moments/${moment.id}`;
+}
+
 function ShareSheet({
   open,
   onClose,
@@ -467,7 +474,7 @@ function ShareSheet({
     try {
       await api.post(`/api/conversations/${conversationId}`, {
         kind: "text",
-        body: `Take a look at this Moment: ${window.location.origin}/p/${moment.id}`,
+        body: `Take a look at this Moment: ${shareUrl(moment)}`,
       });
       onSent();
       onClose();

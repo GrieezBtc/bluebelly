@@ -62,6 +62,8 @@ export type MomentAuthor = PublicUser;
 
 export type MomentView = {
   id: number;
+  /** Short code for public links (/moment/p/<code>); null only for very old Moments. */
+  shareCode: string | null;
   kind: MomentKind;
   body: string;
   mediaUrl: string | null;

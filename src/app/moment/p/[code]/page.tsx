@@ -6,11 +6,11 @@ import { BrandMark, Icon } from "@/components/icons";
 import { PublicProviders } from "@/components/providers";
 import { Avatar, TimeAgo } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth";
-import { getMoment } from "@/db/store";
+import { getMomentByShareCode } from "@/db/store";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ code: string }> };
 
 async function origin() {
   const h = await headers();
@@ -20,10 +20,8 @@ async function origin() {
 }
 
 /** Only genuinely public Moments are ever visible to logged-out visitors. */
-async function loadPublicMoment(rawId: string) {
-  const id = Number(rawId);
-  if (!Number.isInteger(id) || id <= 0) return null;
-  const found = await getMoment(null, id);
+async function loadPublicMoment(code: string) {
+  const found = await getMomentByShareCode(null, code);
   return found?.moment ?? null;
 }
 
@@ -33,13 +31,13 @@ function excerpt(text: string, max: number) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params;
-  const moment = await loadPublicMoment(id);
+  const { code } = await params;
+  const moment = await loadPublicMoment(code);
   if (!moment) {
     return { title: "Moment on Bemblo", robots: { index: false }, description: "Join Bemblo — Talk. Share. Connect." };
   }
   const base = await origin();
-  const url = `${base}/p/${moment.id}`;
+  const url = `${base}/moment/p/${code}`;
   const title = `${moment.author.name} (@${moment.author.username}) on Bemblo`;
   const fallback = moment.kind === "photo" ? "Shared a photo on Bemblo" : moment.kind === "video" ? "Shared a video on Bemblo" : "Shared a Moment on Bemblo";
   const description = moment.body ? excerpt(moment.body, 200) : fallback;
@@ -49,7 +47,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? moment.mediaUrl.startsWith("http")
         ? moment.mediaUrl
         : `${base}${moment.mediaUrl}`
-      : `${base}/p/${moment.id}/card`;
+      : `${base}/moment/p/${code}/card`;
   return {
     title,
     description,
@@ -60,11 +58,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function SharedMomentPage({ params }: Props) {
-  const { id } = await params;
+  const { code } = await params;
   const user = await getCurrentUser();
-  if (user?.emailVerifiedAt && user.onboardedAt) redirect(`/moments/${Number(id) || ""}`);
+  if (user?.emailVerifiedAt && user.onboardedAt) {
+    // Logged-in users get the full app view (this applies their own privacy/audience rules).
+    const visible = await getMomentByShareCode(user.id, code);
+    if (visible) redirect(`/moments/${visible.moment.id}`);
+  }
 
-  const moment = await loadPublicMoment(id);
+  const moment = await loadPublicMoment(code);
 
   return (
     <PublicProviders>

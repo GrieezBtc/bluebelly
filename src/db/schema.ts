@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -154,9 +155,15 @@ export const moments = pgTable(
     audience: text("audience").$type<MomentAudience>().default("public").notNull(),
     audienceLocked: boolean("audience_locked").default(false).notNull(),
     archived: boolean("archived").default(false).notNull(),
+    // Short public share code used in links: /moment/p/<shareCode>
+    shareCode: text("share_code"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("moments_author_idx").on(t.authorId), index("moments_created_idx").on(t.createdAt)],
+  (t) => [
+    index("moments_author_idx").on(t.authorId),
+    index("moments_created_idx").on(t.createdAt),
+    uniqueIndex("moments_share_code_unique").on(t.shareCode),
+  ],
 );
 
 export const momentLikes = pgTable(

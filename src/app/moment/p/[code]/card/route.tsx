@@ -1,15 +1,14 @@
 import { ImageResponse } from "next/og";
-import { getMoment } from "@/db/store";
+import { getMomentByShareCode } from "@/db/store";
 
 export const dynamic = "force-dynamic";
 
-type Ctx = { params: Promise<{ id: string }> };
+type Ctx = { params: Promise<{ code: string }> };
 
-/** GET /p/:id/card — 1200x630 link-preview card for public Moments without a photo. */
+/** GET /moment/p/:code/card — 1200x630 link-preview card for public Moments without a photo. */
 export async function GET(_request: Request, { params }: Ctx) {
-  const { id } = await params;
-  const num = Number(id);
-  const found = Number.isInteger(num) && num > 0 ? await getMoment(null, num) : null;
+  const { code } = await params;
+  const found = await getMomentByShareCode(null, code);
   const moment = found?.moment ?? null;
 
   const raw = moment?.body?.replace(/\s+/g, " ").trim() ?? "";
