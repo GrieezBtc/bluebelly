@@ -103,7 +103,7 @@ self.addEventListener("push", (event) => {
       await self.registration.showNotification(payload.title, {
         body: payload.body,
         icon: "/icons/bemblo-icon.png",
-        badge: "/icons/bemblo-icon.png",
+        badge: "/icons/bemblo-badge.png",
         data: { url: payload.url },
         tag: payload.tag ?? "bemblo",
         renotify: true,
