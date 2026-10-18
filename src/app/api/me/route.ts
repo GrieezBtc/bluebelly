@@ -62,7 +62,9 @@ export async function PATCH(request: Request) {
     }
     if (body.accent !== undefined && ACCENTS.includes(body.accent as Accent)) updates.accent = body.accent;
     if (body.username !== undefined) {
-      const check = validateUsername(requireString(body.username, "Username", { max: 24 }));
+      const requested = requireString(body.username, "Username", { max: 24 }).trim().toLowerCase().replace(/^@/, "");
+      // An unchanged username is never re-validated (the official account keeps its reserved name).
+      const check = requested === user.username ? ({ ok: true, value: requested } as const) : validateUsername(requested);
       if (!check.ok) throw new Error(check.message);
       if (check.value !== user.username) {
         const taken = await db.select({ id: users.id }).from(users).where(eq(users.username, check.value)).limit(1);
