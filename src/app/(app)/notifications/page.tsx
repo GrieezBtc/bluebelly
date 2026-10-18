@@ -15,6 +15,7 @@ const ICONS: Record<NotificationTypeWire, IconName> = {
   follow_accepted: "check",
   like: "heart",
   comment: "comment",
+  reply: "reply",
   mention: "at",
   message_request: "request",
   message: "chat",
@@ -27,6 +28,7 @@ const TITLES: Record<NotificationTypeWire, string> = {
   follow_accepted: "approved your follow request",
   like: "liked your Moment",
   comment: "commented on your Moment",
+  reply: "replied to you",
   mention: "mentioned you",
   message_request: "sent a message request",
   message: "sent you a message",
@@ -42,13 +44,13 @@ export default function NotificationsPage() {
 
   const items = (data?.notifications ?? []).filter((item) => {
     if (filter === "all") {
-      return item.type !== "message" && item.type !== "message_request";
+      return item.type !== "message" && item.type !== "message_request" && !(item.type === "reply" && item.href?.startsWith("/messages/"));
     }
     if (filter === "messages") {
-      return item.type === "message" || item.type === "message_request";
+      return item.type === "message" || item.type === "message_request" || (item.type === "reply" && Boolean(item.href?.startsWith("/messages/")));
     }
     if (filter === "requests") return item.type === "follow_request" || item.type === "follow" || item.type === "follow_accepted";
-    return item.type === "like" || item.type === "comment" || item.type === "mention";
+    return item.type === "like" || item.type === "comment" || item.type === "reply" || item.type === "mention";
   });
 
   async function markAll() {

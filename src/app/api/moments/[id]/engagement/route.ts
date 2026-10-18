@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: Params) {
     const { id } = await params;
     const momentId = Number(id);
     const user = await requireVerifiedUser(request);
-    const body = await readJson<{ action?: string; body?: string }>(request);
+    const body = await readJson<{ action?: string; body?: string; parentId?: number }>(request);
     switch (body.action) {
       case "like":
         return ok(await toggleLike(user, momentId, true));
@@ -35,7 +35,13 @@ export async function POST(request: Request, { params }: Params) {
         return ok(await toggleLike(user, momentId, false));
       case "comment": {
         const text = requireString(body.body, "Comment", { min: 1, max: 600 });
-        return ok(await addComment(user, momentId, text), 201);
+        const parentId = typeof body.parentId === "number" && Number.isInteger(body.parentId) ? body.parentId : null;
+        try {
+          return ok(await addComment(user, momentId, text, parentId), 201);
+        } catch (error) {
+          if (error instanceof Error && error.message === "parent_not_found") throw notFound("That comment is no longer available.");
+          throw error;
+        }
       }
       case "share":
         return ok(await shareMoment(user, momentId));

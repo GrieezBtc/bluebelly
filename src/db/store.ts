@@ -476,6 +476,7 @@ export async function listComments(viewerId: number | null, momentId: number): P
     .select({
       commentId: momentComments.id,
       body: momentComments.body,
+      parentCommentId: momentComments.parentCommentId,
       createdAt: momentComments.createdAt,
       authorId: users.id,
       username: users.username,
@@ -490,13 +491,20 @@ export async function listComments(viewerId: number | null, momentId: number): P
     .innerJoin(users, eq(users.id, momentComments.userId))
     .where(eq(momentComments.momentId, momentId))
     .orderBy(momentComments.createdAt);
-  return rows.map((row) => ({
-    id: row.commentId,
-    body: row.body,
-    createdAt: row.createdAt.toISOString(),
-    isMine: viewerId === row.authorId,
-    author: toPublicUser({ ...row, id: row.authorId }),
-  }));
+  const byId = new Map(rows.map((row) => [row.commentId, row]));
+  return rows.map((row) => {
+    const parent = row.parentCommentId ? byId.get(row.parentCommentId) : undefined;
+    return {
+      id: row.commentId,
+      body: row.body,
+      createdAt: row.createdAt.toISOString(),
+      isMine: viewerId === row.authorId,
+      author: toPublicUser({ ...row, id: row.authorId }),
+      replyTo: parent
+        ? { id: parent.commentId, authorName: parent.name, authorUsername: parent.username, snippet: parent.body.slice(0, 80) }
+        : null,
+    };
+  });
 }
 
 export async function createMomentRecord(input: {
@@ -569,18 +577,49 @@ export async function toggleLike(viewer: AuthUser, momentId: number, like: boole
   return { likeCount: Number(count?.c ?? 0), likedByMe: Boolean(mine) };
 }
 
-export async function addComment(viewer: AuthUser, momentId: number, body: string) {
+export async function addComment(viewer: AuthUser, momentId: number, body: string, parentCommentId?: number | null) {
   const found = await getMoment(viewer.id, momentId);
   if (!found) throw new Error("not_found");
-  const [created] = await db.insert(momentComments).values({ momentId, userId: viewer.id, body }).returning();
-  await createNotification({
-    userId: found.moment.author.id,
-    type: "comment",
-    actorId: viewer.id,
-    entityType: "moment",
-    entityId: momentId,
-    preview: body.slice(0, 90),
-  });
+
+  let parent: { id: number; userId: number; body: string; name: string; username: string } | null = null;
+  if (parentCommentId) {
+    const [row] = await db
+      .select({ id: momentComments.id, userId: momentComments.userId, body: momentComments.body, name: users.name, username: users.username })
+      .from(momentComments)
+      .innerJoin(users, eq(users.id, momentComments.userId))
+      .where(and(eq(momentComments.id, parentCommentId), eq(momentComments.momentId, momentId)))
+      .limit(1);
+    if (!row) throw new Error("parent_not_found");
+    parent = row;
+  }
+
+  const [created] = await db
+    .insert(momentComments)
+    .values({ momentId, userId: viewer.id, body, parentCommentId: parent?.id ?? null })
+    .returning();
+
+  // The person being replied to hears about the reply; the Moment's owner hears about the comment
+  // (once — never twice if they are the same person).
+  if (parent && parent.userId !== viewer.id) {
+    await createNotification({
+      userId: parent.userId,
+      type: "reply",
+      actorId: viewer.id,
+      entityType: "moment",
+      entityId: momentId,
+      preview: `Replied to your comment: ${body.slice(0, 80)}`,
+    });
+  }
+  if (!parent || parent.userId !== found.moment.author.id) {
+    await createNotification({
+      userId: found.moment.author.id,
+      type: "comment",
+      actorId: viewer.id,
+      entityType: "moment",
+      entityId: momentId,
+      preview: body.slice(0, 90),
+    });
+  }
   const [count] = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(momentComments)
@@ -592,6 +631,9 @@ export async function addComment(viewer: AuthUser, momentId: number, body: strin
       createdAt: created.createdAt.toISOString(),
       isMine: true,
       author: toPublicUser(viewer),
+      replyTo: parent
+        ? { id: parent.id, authorName: parent.name, authorUsername: parent.username, snippet: parent.body.slice(0, 80) }
+        : null,
     } satisfies CommentView,
     commentCount: Number(count?.c ?? 0),
   };
@@ -631,7 +673,7 @@ export async function createNotification(input: {
   if (input.actorId === input.userId) return;
   const rows = await db.select({ prefs: users.notificationPrefs }).from(users).where(eq(users.id, input.userId)).limit(1);
   const prefs = normalizePrefs(rows[0]?.prefs ?? null);
-  if (input.type === "message" || input.type === "message_request") {
+  if (input.type === "message" || input.type === "message_request" || (input.type === "reply" && input.entityType === "conversation")) {
     if (!prefs.messages) return;
   } else if (input.type === "follow" || input.type === "follow_request" || input.type === "follow_accepted") {
     if (!prefs.requests) return;
@@ -665,6 +707,8 @@ function notificationCopy(type: NotificationView["type"], actorName: string, pre
       return { title: actorName, body: preview || "Sent you a message request" };
     case "like":
       return { title: actorName, body: "Liked your Moment" };
+    case "reply":
+      return { title: `${actorName} replied to you`, body: preview || "Replied to you" };
     case "comment":
       return { title: `${actorName} commented`, body: preview || "Commented on your Moment" };
     case "mention":
@@ -1060,6 +1104,14 @@ export async function listConversations(
   });
 }
 
+function replyPreview(m: { kind: MessageView["kind"]; body: string; deletedAt: Date | null }) {
+  if (m.deletedAt) return "Message deleted";
+  if (m.kind === "voice") return "Voice message";
+  if (m.kind === "image") return "Photo";
+  if (m.kind === "video") return "Video";
+  return m.body.slice(0, 80);
+}
+
 export async function getConversationDetail(viewer: AuthUser, conversationId: number): Promise<ConversationDetail | null> {
   const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
   if (!conversation) return null;
@@ -1097,6 +1149,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       editedAt: messages.editedAt,
       deletedAt: messages.deletedAt,
       deletedById: messages.deletedById,
+      replyToId: messages.replyToId,
     })
     .from(messages)
     .where(
@@ -1117,6 +1170,18 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
   );
 
   const others = memberRows.filter((m) => m.id !== viewer.id);
+  const rowById = new Map(messageRows.map((r) => [r.id, r]));
+  const resolveReply = (replyToId: number | null): MessageView["replyTo"] => {
+    if (!replyToId) return null;
+    const target = rowById.get(replyToId);
+    if (!target) return null;
+    return {
+      id: target.id,
+      senderName: senderMap.get(target.senderId)?.name ?? "Someone",
+      preview: replyPreview(target),
+      deleted: target.deletedAt !== null,
+    };
+  };
   const messageViewsList: MessageView[] = messageRows.map((m) => {
     const isMine = m.senderId === viewer.id;
     const notViewedYet = conversation.kind === "direct" && !m.isSystem && m.firstViewedAt === null;
@@ -1158,6 +1223,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       deletedBy: deleted ? (m.deletedById === m.senderId ? "sender" : "admin") : null,
       canEdit: !deleted && !m.isSystem && isMine && m.kind === "text",
       canDelete: !deleted && !m.isSystem && (isMine || isAdminHere),
+      replyTo: deleted ? null : resolveReply(m.replyToId),
     } satisfies MessageView;
   });
 
@@ -1243,7 +1309,7 @@ export async function markConversationRead(viewer: AuthUser, conversationId: num
 export async function sendMessage(
   viewer: AuthUser,
   conversationId: number,
-  input: { kind: MessageView["kind"]; body?: string; mediaUrl?: string | null; durationSec?: number | null },
+  input: { kind: MessageView["kind"]; body?: string; mediaUrl?: string | null; durationSec?: number | null; replyToId?: number | null },
 ): Promise<MessageView> {
   const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
   if (!conversation) throw new Error("not_found");
@@ -1256,6 +1322,18 @@ export async function sendMessage(
 
   if (conversation.kind === "group" && conversation.membersMuted && membership.role !== "admin") {
     throw new Error("group_muted");
+  }
+
+  // A reply must point at a live message in this same conversation.
+  let replyTarget: { id: number; senderId: number; kind: MessageView["kind"]; body: string; deletedAt: Date | null } | null = null;
+  if (input.replyToId) {
+    const [target] = await db
+      .select({ id: messages.id, senderId: messages.senderId, kind: messages.kind, body: messages.body, deletedAt: messages.deletedAt, isSystem: messages.isSystem })
+      .from(messages)
+      .where(and(eq(messages.id, input.replyToId), eq(messages.conversationId, conversationId)))
+      .limit(1);
+    if (!target || target.isSystem) throw new Error("reply_not_found");
+    replyTarget = target;
   }
 
   const mediaId = await ownedMediaId(viewer.id, input.mediaUrl);
@@ -1272,6 +1350,7 @@ export async function sendMessage(
       mediaUrl: input.mediaUrl ?? null,
       durationSec: input.durationSec ?? null,
       isSystem: false,
+      replyToId: replyTarget?.id ?? null,
       expiresAt,
       maxRetentionAt: new Date(now.getTime() + MESSAGE_EXPIRY.maxUnviewedRetentionMs),
     })
@@ -1286,17 +1365,20 @@ export async function sendMessage(
     .select({ userId: conversationMembers.userId, state: conversationMembers.state })
     .from(conversationMembers)
     .where(and(eq(conversationMembers.conversationId, conversationId), ne(conversationMembers.userId, viewer.id)));
+  const summary =
+    input.kind === "text" ? (input.body ?? "").slice(0, 90) : `Sent you a ${input.kind === "voice" ? "voice message" : input.kind}`;
   for (const other of others) {
+    // In a group, the person whose message was replied to gets a dedicated "reply" notification
+    // (instead of the generic one) so they know it was aimed at them.
+    const isRepliedTo =
+      conversation.kind === "group" && replyTarget !== null && replyTarget.senderId === other.userId && other.state !== "requested";
     await createNotification({
       userId: other.userId,
-      type: other.state === "requested" ? "message_request" : "message",
+      type: isRepliedTo ? "reply" : other.state === "requested" ? "message_request" : "message",
       actorId: viewer.id,
       entityType: "conversation",
       entityId: conversationId,
-      preview:
-        input.kind === "text"
-          ? (input.body ?? "").slice(0, 90)
-          : `Sent you a ${input.kind === "voice" ? "voice message" : input.kind}`,
+      preview: isRepliedTo ? `Replied to you: ${summary}` : summary,
     });
   }
 
@@ -1321,6 +1403,14 @@ export async function sendMessage(
     deletedBy: null,
     canEdit: created.kind === "text",
     canDelete: true,
+    replyTo: replyTarget
+      ? {
+          id: replyTarget.id,
+          senderName: replyTarget.senderId === viewer.id ? viewer.name : (await db.select({ name: users.name }).from(users).where(eq(users.id, replyTarget.senderId)).limit(1))[0]?.name ?? "Someone",
+          preview: replyPreview(replyTarget),
+          deleted: replyTarget.deletedAt !== null,
+        }
+      : null,
   };
 }
 

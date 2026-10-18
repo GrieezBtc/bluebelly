@@ -344,6 +344,7 @@ function CommentsSheet({
   );
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [replyTo, setReplyTo] = useState<CommentView | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -359,6 +360,9 @@ function CommentsSheet({
       body: draft.trim(),
       createdAt: new Date().toISOString(),
       isMine: true,
+      replyTo: replyTo
+        ? { id: replyTo.id, authorName: replyTo.author.name, authorUsername: replyTo.author.username, snippet: replyTo.body.slice(0, 80) }
+        : null,
       author: {
         id: user?.id ?? 0,
         username: user?.username ?? "",
@@ -372,11 +376,13 @@ function CommentsSheet({
     };
     setData((current) => ({ comments: [...(current?.comments ?? []), optimistic] }));
     const value = draft.trim();
+    const parentId = replyTo && replyTo.id > 0 ? replyTo.id : undefined;
     setDraft("");
+    setReplyTo(null);
     try {
       const result = await api.post<{ comment: CommentView; commentCount: number }>(
         `/api/moments/${momentId}/engagement`,
-        { action: "comment", body: value },
+        { action: "comment", body: value, parentId },
       );
       setData((current) => ({
         comments: (current?.comments ?? []).map((item) => (item.id === optimistic.id ? result.comment : item)),
@@ -416,12 +422,41 @@ function CommentsSheet({
                     </Link>
                     <TimeAgo iso={comment.createdAt} className="caption font-normal" />
                   </p>
+                  {comment.replyTo ? (
+                    <p className="caption flex items-center gap-1">
+                      <Icon name="reply" size={12} />
+                      Replying to <span className="font-semibold">{comment.replyTo.authorName}</span>
+                    </p>
+                  ) : null}
                   <p className="body-sm whitespace-pre-wrap">{comment.body}</p>
+                  {comment.id > 0 ? (
+                    <button
+                      type="button"
+                      className="caption mt-0.5 font-semibold hover:underline"
+                      onClick={() => {
+                        setReplyTo(comment);
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      Reply
+                    </button>
+                  ) : null}
                 </div>
               </li>
             ))}
           </ul>
         )}
+        {replyTo ? (
+          <div className="flex items-center gap-2 rounded-md bg-[color:var(--surface-2,transparent)] px-1 text-sm">
+            <Icon name="reply" size={14} />
+            <p className="min-w-0 flex-1 truncate">
+              Replying to <span className="font-semibold">{replyTo.author.name}</span>
+            </p>
+            <button type="button" className="btn-icon" aria-label="Cancel reply" onClick={() => setReplyTo(null)}>
+              <Icon name="x" size={14} />
+            </button>
+          </div>
+        ) : null}
         <form className="sticky bottom-0 flex items-end gap-2 bg-surface pt-2" onSubmit={submit}>
           <Field label="Add a comment" htmlFor={`comment-${momentId}`}>
             <textarea
@@ -432,7 +467,7 @@ function CommentsSheet({
               maxLength={600}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="Write a comment…"
+              placeholder={replyTo ? `Reply to ${replyTo.author.name}…` : "Write a comment…"}
               style={{ minHeight: 48 }}
             />
           </Field>

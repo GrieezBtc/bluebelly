@@ -50,6 +50,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [editTarget, setEditTarget] = useState<MessageView | null>(null);
   const [editValue, setEditValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<MessageView | null>(null);
+  const [replyingTo, setReplyingTo] = useState<MessageView | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -106,7 +107,9 @@ export function ConversationView({ conversationId }: { conversationId: number })
         body,
         mediaUrl,
         durationSec,
+        replyToId: replyingTo?.id,
       });
+      setReplyingTo(null);
       setDetail((current) => (current ? { ...current, messages: [...current.messages, result.message] } : current));
       setDraft("");
     } catch (err) {
@@ -392,6 +395,18 @@ export function ConversationView({ conversationId }: { conversationId: number })
           Only admins can send messages while this group is muted.
         </div>
       ) : null}
+      {replyingTo ? (
+        <div className="flex shrink-0 items-center gap-2 border-t border-[color:var(--line)] bg-surface px-4 py-2">
+          <Icon name="reply" size={16} />
+          <div className="min-w-0 flex-1 border-l-2 border-[color:var(--line)] pl-2">
+            <p className="truncate text-xs font-semibold">Replying to {replyingTo.isMine ? "yourself" : (replyingTo.sender?.name ?? "message")}</p>
+            <p className="caption truncate">{replyingTo.kind === "text" ? replyingTo.body : replyingTo.kind === "voice" ? "Voice message" : replyingTo.kind === "image" ? "Photo" : "Video"}</p>
+          </div>
+          <button type="button" className="btn-icon" aria-label="Cancel reply" onClick={() => setReplyingTo(null)}>
+            <Icon name="x" size={16} />
+          </button>
+        </div>
+      ) : null}
       <form
         className="chat-input safe-bottom z-10 shrink-0"
         onSubmit={(event) => {
@@ -586,6 +601,19 @@ export function ConversationView({ conversationId }: { conversationId: number })
 
       <Overlay open={Boolean(messageMenu)} onClose={() => setMessageMenu(null)} title="Message options">
         <div className="flex flex-col gap-1">
+          {messageMenu ? (
+            <button
+              type="button"
+              className="list-row rounded-md"
+              onClick={() => {
+                setReplyingTo(messageMenu);
+                setMessageMenu(null);
+              }}
+            >
+              <Icon name="reply" size={20} />
+              <span className="flex-1 text-left text-sm font-semibold">Reply</span>
+            </button>
+          ) : null}
           {messageMenu?.canEdit ? (
             <button
               type="button"
@@ -757,6 +785,13 @@ function MessageBubble({
       <div className={cn("bubble", message.isMine ? "bubble-mine" : "bubble-theirs")}>
         {showSender && !message.isMine && message.sender ? (
           <p className="pb-0.5 text-xs font-semibold opacity-90">{message.sender.name}</p>
+        ) : null}
+
+        {message.replyTo ? (
+          <div className="mb-1 rounded-sm border-l-2 border-current bg-black/10 px-2 py-1 text-xs opacity-90">
+            <p className="font-semibold">{message.replyTo.senderName}</p>
+            <p className={cn("line-clamp-2", message.replyTo.deleted && "italic")}>{message.replyTo.preview}</p>
+          </div>
         ) : null}
 
         {message.kind === "text" ? <p className="whitespace-pre-wrap">{message.body}</p> : null}

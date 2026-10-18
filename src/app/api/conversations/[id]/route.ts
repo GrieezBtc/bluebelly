@@ -40,6 +40,7 @@ export async function POST(request: Request, { params }: Params) {
       body?: string;
       mediaUrl?: string;
       durationSec?: number;
+      replyToId?: number;
     }>(request);
 
     if (body.action === "read") {
@@ -63,6 +64,7 @@ export async function POST(request: Request, { params }: Params) {
       body: text.slice(0, 4000),
       mediaUrl: body.mediaUrl ?? null,
       durationSec: typeof body.durationSec === "number" ? Math.round(body.durationSec) : null,
+      replyToId: typeof body.replyToId === "number" && Number.isInteger(body.replyToId) ? body.replyToId : null,
     });
     return ok({ message }, 201);
   } catch (error) {
@@ -71,6 +73,9 @@ export async function POST(request: Request, { params }: Params) {
     }
     if (error instanceof Error && error.message === "forbidden") {
       return fail(forbidden("You are not part of this conversation.", "not_a_member"));
+    }
+    if (error instanceof Error && error.message === "reply_not_found") {
+      return fail(notFound("The message you are replying to is no longer available."));
     }
     if (error instanceof Error && error.message === "group_muted") {
       return fail(forbidden("Only admins can send while this group is muted.", "group_muted"));

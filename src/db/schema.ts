@@ -34,6 +34,7 @@ export type NotificationType =
   | "follow_accepted"
   | "like"
   | "comment"
+  | "reply"
   | "mention"
   | "message_request"
   | "message"
@@ -184,6 +185,8 @@ export const momentComments = pgTable(
     momentId: integer("moment_id").notNull(),
     userId: integer("user_id").notNull(),
     body: text("body").notNull(),
+    // The comment this one replies to (null for top-level comments).
+    parentCommentId: integer("parent_comment_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("moment_comments_moment_idx").on(t.momentId)],
@@ -252,6 +255,8 @@ export const messages = pgTable(
     editedAt: timestamp("edited_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     deletedById: integer("deleted_by_id"),
+    // The message this one replies to (same conversation).
+    replyToId: integer("reply_to_id"),
   },
   (t) => [
     index("messages_conversation_idx").on(t.conversationId),

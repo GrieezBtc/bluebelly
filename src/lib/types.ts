@@ -89,6 +89,8 @@ export type CommentView = {
   createdAt: string;
   author: PublicUser;
   isMine: boolean;
+  /** Who/what this comment replies to, if it is a reply. */
+  replyTo: { id: number; authorName: string; authorUsername: string; snippet: string } | null;
 };
 
 export type FeedPage = {
@@ -135,6 +137,8 @@ export type MessageView = {
   /** Permissions for the viewer, decided by the server. */
   canEdit: boolean;
   canDelete: boolean;
+  /** The message this one replies to, if any. */
+  replyTo: { id: number; senderName: string; preview: string; deleted: boolean } | null;
 };
 
 export type ConversationDetail = {
@@ -172,6 +176,7 @@ export type NotificationTypeWire =
   | "follow_accepted"
   | "like"
   | "comment"
+  | "reply"
   | "mention"
   | "message_request"
   | "message"
