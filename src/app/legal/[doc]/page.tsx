@@ -21,7 +21,7 @@ export default async function LegalDocPage({ params }: { params: Promise<{ doc: 
   const content = DOCS[doc];
   if (!content) notFound();
   const viewer = await getCurrentUser();
-  const backHref = viewer ? "/settings?tab=legal" : "/";
+  const backHref = viewer ? `/profile/${viewer.username}?menu=1` : "/";
 
   return (
     <PublicProviders>

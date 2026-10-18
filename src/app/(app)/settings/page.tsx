@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Icon, type IconName } from "@/components/icons";
+import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/app-shell";
 import {
   Avatar,
@@ -23,19 +23,17 @@ import { useSession } from "@/components/providers";
 import { ACCENTS, USERNAME_RULES } from "@/lib/utils";
 import { MESSAGE_PERMISSION_COPY, PRIVACY_SWITCH_COPY } from "@/lib/privacy";
 import { disablePushOnDevice, enablePushOnDevice } from "@/lib/push-client";
-import { NOTIFICATION_PREF_COPY, SUPPORT_TOPICS } from "@/lib/content";
+import { NOTIFICATION_PREF_COPY } from "@/lib/content";
 import type { MessagePermission, NotificationPrefs, UserSummary } from "@/lib/types";
 
-type Tab = "account" | "privacy" | "messaging" | "notifications" | "content" | "support" | "legal";
+type Tab = "profile" | "account" | "privacy" | "messaging" | "notifications" | "content";
 
 const TAB_LABELS: { value: Tab; label: string }[] = [
-  { value: "account", label: "Account" },
+  { value: "account", label: "Account & app" },
   { value: "privacy", label: "Privacy" },
   { value: "messaging", label: "Messaging" },
   { value: "notifications", label: "Notifications" },
   { value: "content", label: "Content" },
-  { value: "support", label: "Support" },
-  { value: "legal", label: "Legal" },
 ];
 
 function SettingsInner() {
@@ -66,7 +64,7 @@ function SettingsInner() {
 
   useEffect(() => {
     const param = new URLSearchParams(window.location.search).get("tab");
-    if (param && TAB_LABELS.some((item) => item.value === param)) setTab(param as Tab);
+    if (param === "profile" || (param && TAB_LABELS.some((item) => item.value === param))) setTab(param as Tab);
   }, []);
 
   useEffect(() => {
@@ -163,8 +161,13 @@ function SettingsInner() {
 
   return (
     <div className="page px-4">
-      <PageHeader title="Settings" subtitle={`@${user.username}`} backHref={`/profile/${user.username}`} />
+      <PageHeader
+        title={tab === "profile" ? "Edit profile" : "Settings"}
+        subtitle={`@${user.username}`}
+        backHref={tab === "profile" ? `/profile/${user.username}` : `/profile/${user.username}?menu=1`}
+      />
 
+      {tab !== "profile" ? (
       <div className="pb-4">
         <div className="scroll-x" role="tablist" aria-label="Settings sections">
           {TAB_LABELS.map((item) => (
@@ -182,8 +185,9 @@ function SettingsInner() {
           ))}
         </div>
       </div>
+      ) : null}
 
-      {tab === "account" ? (
+      {tab === "profile" ? (
         <div className="flex flex-col gap-4">
           <section className="card card-pad flex flex-col gap-4">
             <h2 className="h3">Profile</h2>
@@ -260,6 +264,11 @@ function SettingsInner() {
             </button>
           </section>
 
+        </div>
+      ) : null}
+
+      {tab === "account" ? (
+        <div className="flex flex-col gap-4">
           <section className="card card-pad flex flex-col gap-3">
             <h2 className="h3">Login &amp; contact</h2>
             <div className="flex items-center justify-between gap-3">
@@ -707,64 +716,6 @@ function SettingsInner() {
               . Muting keeps follows and messages intact while hiding Moments from your feed.
             </p>
           </section>
-        </div>
-      ) : null}
-
-      {tab === "support" ? (
-        <div className="flex flex-col gap-4">
-          <section className="grid gap-2 sm:grid-cols-2">
-            {[
-              { href: "/support", label: "Help centre", blurb: "Guides and FAQs for every feature", icon: "help" as IconName },
-              { href: "/support?tab=contact", label: "Contact support", blurb: "Average first reply under 4 hours", icon: "mail" as IconName },
-              { href: "/support?tab=contact", label: "Report a problem", blurb: "Tell us what broke, we will fix it", icon: "alert" as IconName },
-              { href: "/support?tab=recovery", label: "Account recovery", blurb: "Locked out? Start here", icon: "key" as IconName },
-            ].map((card) => (
-              <Link key={card.label} href={card.href} className="card card-pad">
-                <span className="grid h-9 w-9 place-items-center rounded-md bg-brand-soft text-brand">
-                  <Icon name={card.icon} size={18} />
-                </span>
-                <span className="block pt-2 font-semibold">{card.label}</span>
-                <span className="body-sm block">{card.blurb}</span>
-              </Link>
-            ))}
-          </section>
-          <section className="card card-pad">
-            <h2 className="h3">Support topics we handle</h2>
-            <ul className="body-sm list-disc space-y-1 pt-2 pl-4">
-              {SUPPORT_TOPICS.map((topic) => (
-                <li key={topic.id}>
-                  <strong>{topic.label}</strong> — {topic.blurb}
-                </li>
-              ))}
-            </ul>
-          </section>
-          <InfoBanner tone="brand" icon="shield-check" title="Our promise">
-            <p>
-              Real people answer, in plain language, and we never ask for your password. Safety reports are reviewed within 24
-              hours.
-            </p>
-          </InfoBanner>
-        </div>
-      ) : null}
-
-      {tab === "legal" ? (
-        <div className="flex flex-col gap-3">
-          {[
-            { href: "/legal/privacy", label: "Privacy Policy", blurb: "What we collect, how visibility works, your controls" },
-            { href: "/legal/terms", label: "Terms of Service", blurb: "Rules for using Bemblo" },
-            { href: "/legal/guidelines", label: "Community guidelines", blurb: "What we expect from each other" },
-          ].map((doc) => (
-            <Link key={doc.href} href={doc.href} className="card card-pad flex items-center gap-3">
-              <span className="grid h-9 w-9 place-items-center rounded-md bg-brand-soft text-brand">
-                <Icon name="shield" size={18} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold">{doc.label}</span>
-                <span className="body-sm block">{doc.blurb}</span>
-              </span>
-              <Icon name="chevron-right" size={18} className="text-ink-3" />
-            </Link>
-          ))}
         </div>
       ) : null}
 

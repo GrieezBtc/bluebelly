@@ -16,6 +16,7 @@ import {
   Segmented,
   useToast,
 } from "@/components/ui";
+import { ProfileMenu } from "@/components/profile-menu";
 import { MomentCard } from "@/components/moments/moment-card";
 import { FollowButton, MessageButton, UserOptionsMenu } from "@/components/social/user-actions";
 import { api, useQuery } from "@/lib/client";
@@ -38,7 +39,7 @@ type ProfilePayload = {
     canViewFollowers: boolean;
     profilePrivacy: "public" | "private";
   };
-  moments: { id: number; shareCode: string | null; kind: "text" | "photo" | "video"; body: string; mediaUrl: string | null; posterUrl: string | null; mediaWidth: number | null; mediaHeight: number | null; audience: "public" | "followers" | "only_me"; audienceLocked: boolean; createdAt: string; author: PublicUser; likeCount: number; commentCount: number; shareCount: number; likedByMe: boolean; isMine: boolean; effectiveAudience: "public" | "followers" | "only_me" | "hidden" }[];
+  moments: { id: number; kind: "text" | "photo" | "video"; body: string; mediaUrl: string | null; posterUrl: string | null; mediaWidth: number | null; mediaHeight: number | null; shareCode: string | null; audience: "public" | "followers" | "only_me"; audienceLocked: boolean; createdAt: string; author: PublicUser; likeCount: number; commentCount: number; shareCount: number; likedByMe: boolean; isMine: boolean; effectiveAudience: "public" | "followers" | "only_me" | "hidden" }[];
   followersPreview: { id: number; username: string; name: string; avatarUrl: string | null; accent: string; relation: RelationState }[];
   pendingRequests: UserSummary[];
 };
@@ -50,8 +51,10 @@ function ProfileInner() {
   const username = params?.username ?? "";
   const [tab, setTab] = useState<"moments" | "followers" | "following">("moments");
   const [pendingOpen, setPendingOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("menu") === "1") setMenuOpen(true);
     const search = new URLSearchParams(window.location.search).get("tab");
     if (search === "followers" || search === "following" || search === "moments") setTab(search);
   }, []);
@@ -82,9 +85,14 @@ function ProfileInner() {
         backHref="/home"
         actions={
           profile.isSelf ? (
-            <Link href="/settings?tab=account" className="btn btn-secondary btn-sm">
-              <Icon name="edit" size={15} /> Edit profile
-            </Link>
+            <>
+              <Link href="/settings?tab=profile" className="btn btn-secondary btn-sm">
+                <Icon name="edit" size={15} /> Edit profile
+              </Link>
+              <button type="button" className="btn-icon" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
+                <Icon name="menu" size={22} />
+              </button>
+            </>
           ) : (
             <UserOptionsMenu user={{ ...profile.user }} relation={profile.relation} onChanged={reload} />
           )
@@ -131,9 +139,6 @@ function ProfileInner() {
             <>
               <Link href="/create" className="btn btn-primary btn-sm">
                 <Icon name="create" size={16} /> New Moment
-              </Link>
-              <Link href="/settings?tab=privacy" className="btn btn-secondary btn-sm">
-                <Icon name="lock" size={16} /> Privacy settings
               </Link>
               {data.pendingRequests.length > 0 ? (
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPendingOpen(true)}>
@@ -327,6 +332,8 @@ function ProfileInner() {
           ))}
         </ul>
       </Overlay>
+
+      <ProfileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <div className="h-6" />
       {loading ? <span className="sr-only">Refreshing profile</span> : null}
