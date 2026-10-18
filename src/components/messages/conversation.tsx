@@ -50,6 +50,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [editTarget, setEditTarget] = useState<MessageView | null>(null);
   const [editValue, setEditValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<MessageView | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ username: string; name: string } | null>(null);
   const [replyingTo, setReplyingTo] = useState<MessageView | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -199,6 +200,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
       | "rename"
       | "add-member"
       | "promote"
+      | "remove-member"
       | "mute-members"
       | "unmute-members"
       | "invite",
@@ -495,6 +497,15 @@ export function ConversationView({ conversationId }: { conversationId: number })
                         Make admin
                       </button>
                     ) : null}
+                    {isGroupAdmin && member.id !== user?.id ? (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm text-coral"
+                        onClick={() => setRemoveTarget({ username: member.username, name: member.name })}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -727,6 +738,20 @@ export function ConversationView({ conversationId }: { conversationId: number })
           type: messageMenu ? "message" : "user",
           id: messageMenu?.id ?? otherMember?.id,
           label: messageMenu ? "this message" : `@${otherMember?.username ?? conversation.title}`,
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        onClose={() => setRemoveTarget(null)}
+        title={`Remove ${removeTarget?.name ?? "this member"}?`}
+        description="They will no longer see or send messages in this group, and the old invite link will not bring them back. An admin can add them again later."
+        confirmLabel="Remove"
+        tone="danger"
+        onConfirm={async () => {
+          const target = removeTarget;
+          setRemoveTarget(null);
+          if (target) await conversationAction("remove-member", target.username);
         }}
       />
 

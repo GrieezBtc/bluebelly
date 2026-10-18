@@ -1120,7 +1120,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
     .from(conversationMembers)
     .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, viewer.id)))
     .limit(1);
-  if (!membership || membership.state === "declined" || membership.state === "left") return null;
+  if (!membership || membership.state === "declined" || membership.state === "left" || membership.state === "removed") return null;
 
   const memberRows = await db
     .select({
@@ -1169,7 +1169,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
     ]),
   );
 
-  const others = memberRows.filter((m) => m.id !== viewer.id);
+  const others = memberRows.filter((m) => m.id !== viewer.id && m.state === "active");
   const rowById = new Map(messageRows.map((r) => [r.id, r]));
   const resolveReply = (replyToId: number | null): MessageView["replyTo"] => {
     if (!replyToId) return null;
@@ -1233,7 +1233,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       kind: conversation.kind,
       title: conversation.kind === "group" ? conversation.title ?? "Group" : others[0]?.name ?? "Conversation",
       imageUrl: conversation.kind === "group" ? conversation.imageUrl : others[0]?.avatarUrl ?? null,
-      members: memberRows.map((m) => ({ ...toPublicUser(m), role: m.role, state: m.state })),
+      members: memberRows.filter((m) => m.state === "active" || m.state === "requested").map((m) => ({ ...toPublicUser(m), role: m.role, state: m.state })),
       state: membership.state,
       createdAt: conversation.createdAt.toISOString(),
       expiryLabel: conversationExpiryLabel(conversation.kind),
@@ -1261,7 +1261,7 @@ export async function markConversationRead(viewer: AuthUser, conversationId: num
     )
     .limit(1);
 
-  if (!membership || membership.state === "left" || membership.state === "declined") {
+  if (!membership || membership.state === "left" || membership.state === "declined" || membership.state === "removed") {
     throw new Error("forbidden");
   }
 
@@ -1318,7 +1318,7 @@ export async function sendMessage(
     .from(conversationMembers)
     .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, viewer.id)))
     .limit(1);
-  if (!membership || membership.state === "declined" || membership.state === "left") throw new Error("forbidden");
+  if (!membership || membership.state === "declined" || membership.state === "left" || membership.state === "removed") throw new Error("forbidden");
 
   if (conversation.kind === "group" && conversation.membersMuted && membership.role !== "admin") {
     throw new Error("group_muted");
@@ -1469,7 +1469,7 @@ async function requireActiveConversationMember(viewer: AuthUser, conversationId:
     .from(conversationMembers)
     .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, viewer.id)))
     .limit(1);
-  if (!membership || membership.state === "declined" || membership.state === "left") throw new Error("forbidden");
+  if (!membership || membership.state === "declined" || membership.state === "left" || membership.state === "removed") throw new Error("forbidden");
   return membership;
 }
 
@@ -1495,6 +1495,8 @@ export async function joinGroupByInvite(viewer: AuthUser, token: string) {
     .where(and(eq(conversationMembers.conversationId, conversation.id), eq(conversationMembers.userId, viewer.id)))
     .limit(1);
   if (existing?.state === "active") return { ok: true as const, conversationId: conversation.id };
+  // Removed by an admin: the old invite link must not be a way back in. An admin can add them again.
+  if (existing?.state === "removed") throw new Error("removed");
   if (existing) {
     await db.update(conversationMembers).set({ state: "active", joinedAt: new Date() }).where(eq(conversationMembers.id, existing.id));
   } else {
@@ -1506,7 +1508,7 @@ export async function joinGroupByInvite(viewer: AuthUser, token: string) {
 export async function respondToConversation(
   viewer: AuthUser,
   conversationId: number,
-  action: "accept" | "decline" | "leave" | "mute" | "unmute" | "rename" | "add-member" | "promote" | "mute-members" | "unmute-members" | "invite",
+  action: "accept" | "decline" | "leave" | "mute" | "unmute" | "rename" | "add-member" | "promote" | "remove-member" | "mute-members" | "unmute-members" | "invite",
   value?: string,
 ) {
   const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
@@ -1546,6 +1548,15 @@ export async function respondToConversation(
         .update(conversationMembers)
         .set({ state: "left" })
         .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, viewer.id)));
+      if (conversation.kind === "group") {
+        await db.insert(messages).values({
+          conversationId,
+          senderId: viewer.id,
+          kind: "system",
+          isSystem: true,
+          body: `${viewer.name} left the group.`,
+        });
+      }
       return { ok: true as const, message: "You left the group." };
     }
     case "mute":
@@ -1590,6 +1601,37 @@ export async function respondToConversation(
         preview: `Added you to ${conversation.title ?? "a group"}`,
       });
       return { ok: true as const, message: `${target.name} was added to the group.` };
+    }
+    case "remove-member": {
+      // Only admins can remove people. Regular members can only leave on their own.
+      await requireGroupAdmin(viewer, conversationId);
+      const username = value?.trim().toLowerCase();
+      if (!username) return { ok: false as const };
+      const [target] = await db
+        .select({ id: conversationMembers.id, userId: users.id, name: users.name, state: conversationMembers.state })
+        .from(conversationMembers)
+        .innerJoin(users, eq(users.id, conversationMembers.userId))
+        .where(and(eq(conversationMembers.conversationId, conversationId), eq(users.username, username)))
+        .limit(1);
+      if (!target || (target.state !== "active" && target.state !== "requested")) throw new Error("member_not_found");
+      if (target.userId === viewer.id) throw new Error("use_leave");
+      await db.update(conversationMembers).set({ state: "removed", role: "member" }).where(eq(conversationMembers.id, target.id));
+      await db.insert(messages).values({
+        conversationId,
+        senderId: viewer.id,
+        kind: "system",
+        isSystem: true,
+        body: `${target.name} was removed from the group by ${viewer.name}.`,
+      });
+      await createNotification({
+        userId: target.userId,
+        type: "system",
+        actorId: viewer.id,
+        entityType: null,
+        entityId: null,
+        preview: `You were removed from ${conversation.title ?? "a group"}`,
+      });
+      return { ok: true as const, message: `${target.name} was removed from the group.` };
     }
     case "promote": {
       await requireGroupAdmin(viewer, conversationId);

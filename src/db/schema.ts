@@ -26,7 +26,7 @@ export type MomentAudience = "public" | "followers" | "only_me";
 export type MomentKind = "text" | "photo" | "video";
 export type FollowState = "pending" | "accepted";
 export type ConversationKind = "direct" | "group";
-export type MemberState = "active" | "requested" | "declined" | "left";
+export type MemberState = "active" | "requested" | "declined" | "left" | "removed";
 export type MessageKind = "text" | "voice" | "image" | "video" | "system";
 export type NotificationType =
   | "follow"

@@ -105,7 +105,7 @@ export async function GET(request: Request) {
             eq(conversations.imageUrl, mediaLink),
             eq(conversations.createdById, asset.ownerId),
             eq(conversationMembers.userId, viewer.id),
-            notInArray(conversationMembers.state, ["declined", "left"]),
+            notInArray(conversationMembers.state, ["declined", "left", "removed"]),
           ),
         )
         .limit(1);
@@ -147,7 +147,7 @@ export async function GET(request: Request) {
             and(
               eq(conversationMembers.conversationId, message.conversationId),
               eq(conversationMembers.userId, viewer.id),
-              notInArray(conversationMembers.state, ["declined", "left"]),
+              notInArray(conversationMembers.state, ["declined", "left", "removed"]),
             ),
           )
           .limit(1);

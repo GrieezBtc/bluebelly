@@ -100,6 +100,7 @@ export async function PATCH(request: Request, { params }: Params) {
       "rename",
       "add-member",
       "promote",
+      "remove-member",
       "mute-members",
       "unmute-members",
       "invite",
@@ -113,7 +114,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (typeof body.value === "string") {
       if (action === "rename") {
         value = requireString(body.value, "Group name", { min: 2, max: 60 });
-      } else if (action === "add-member" || action === "promote") {
+      } else if (action === "add-member" || action === "promote" || action === "remove-member") {
         value = requireString(body.value, "Username", { min: 1, max: 50 }).trim().toLowerCase();
       }
     }
@@ -130,6 +131,8 @@ export async function PATCH(request: Request, { params }: Params) {
     if (error instanceof Error && error.message === "user_not_found") return fail(notFound("That username was not found."));
     if (error instanceof Error && error.message === "already_member") return fail(conflict("That person is already in the group.", "already_member"));
     if (error instanceof Error && error.message === "member_not_found") return fail(notFound("That active member was not found."));
+    if (error instanceof Error && error.message === "use_leave") return fail(conflict("Use Leave group to remove yourself.", "use_leave"));
+    if (error instanceof Error && error.message === "removed") return fail(forbidden("You were removed from this group. An admin can add you back.", "removed"));
     if (error instanceof Error && error.message === "self_member") return fail(conflict("You are already in this group.", "self_member"));
     return fail(error);
   }
