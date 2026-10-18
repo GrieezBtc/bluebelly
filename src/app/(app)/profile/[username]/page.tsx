@@ -66,7 +66,7 @@ function ProfileInner() {
   if (error || !data) {
     return (
       <div className="page px-4">
-        <PageHeader title="Profile" backHref="/moments" />
+        <PageHeader title="Profile" backHref="/home" />
         <ErrorState title="Profile unavailable" description={error ?? "That account does not exist."} onRetry={reload} />
       </div>
     );
@@ -79,7 +79,7 @@ function ProfileInner() {
       <PageHeader
         title={profile.user.name}
         subtitle={`@${profile.user.username}`}
-        backHref="/moments"
+        backHref="/home"
         actions={
           profile.isSelf ? (
             <Link href="/settings?tab=account" className="btn btn-secondary btn-sm">

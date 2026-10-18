@@ -38,7 +38,7 @@ export default function MomentDetailPage() {
   if (loading) {
     return (
       <div className="page px-4">
-        <PageHeader title="Moment" backHref="/moments" />
+        <PageHeader title="Moment" backHref="/home" />
         <LoadingRows rows={1} />
       </div>
     );
@@ -47,14 +47,14 @@ export default function MomentDetailPage() {
   if (error || !moment) {
     return (
       <div className="page px-4">
-        <PageHeader title="Moment" backHref="/moments" />
+        <PageHeader title="Moment" backHref="/home" />
         <InfoBanner tone="warn" icon="lock" title="This Moment is not available">
           <p className="pb-3">
             {error ?? "It may have been deleted, or its audience does not include you."}
           </p>
           <div className="flex gap-2">
-            <Link href="/moments" className="btn btn-secondary btn-sm">
-              Back to Moments
+            <Link href="/home" className="btn btn-secondary btn-sm">
+              Back to Home
             </Link>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.refresh()}>
               Try again
@@ -67,7 +67,7 @@ export default function MomentDetailPage() {
 
   return (
     <div className="page px-4">
-      <PageHeader title="Moment" subtitle={`@${moment.author.username}`} backHref="/moments" />
+      <PageHeader title="Moment" subtitle={`@${moment.author.username}`} backHref="/home" />
       <MomentCard
         moment={moment}
         priority

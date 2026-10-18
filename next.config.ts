@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
     unoptimized: true,
     remotePatterns,
   },
+  async redirects() {
+    // The old Moments feed page was merged into Home. Keep old links/bookmarks working.
+    return [{ source: "/moments", destination: "/home", permanent: false }];
+  },
   async headers() {
     return [
       {

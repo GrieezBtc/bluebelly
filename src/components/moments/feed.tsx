@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Icon, type IconName } from "@/components/icons";
@@ -16,10 +16,15 @@ export function FeedList({
   query,
   empty,
   onCount,
+  inlineAfter = 3,
+  inline,
 }: {
   query: string;
   empty: { title: string; description?: string; icon?: IconName; action?: React.ReactNode };
   onCount?: (count: number) => void;
+  /** Optional block (e.g. people suggestions) shown after this many Moments. */
+  inlineAfter?: number;
+  inline?: React.ReactNode;
 }) {
   const [cursor, setCursor] = useState<string | null>(null);
   const [extra, setExtra] = useState<MomentView[]>([]);
@@ -91,18 +96,20 @@ export function FeedList({
   return (
     <div className="flex flex-col gap-3">
       {items.map((moment, index) => (
-        <MomentCard
-          key={moment.id}
-          moment={moment}
-          priority={index < 2}
-          onChanged={(patch) => {
-            if (patch) return;
-            base.reload();
-            setExtra([]);
-            setCursor(null);
-            setDone(false);
-          }}
-        />
+        <Fragment key={moment.id}>
+          <MomentCard
+            moment={moment}
+            priority={index < 2}
+            onChanged={(patch) => {
+              if (patch) return;
+              base.reload();
+              setExtra([]);
+              setCursor(null);
+              setDone(false);
+            }}
+          />
+          {inline && index === Math.min(inlineAfter, items.length) - 1 ? inline : null}
+        </Fragment>
       ))}
       <div ref={sentinel} className="h-6" aria-hidden="true" />
       {loadingMore ? (
@@ -121,7 +128,7 @@ export function FeedList({
 
 export function Composer({
   onPublished,
-  redirectTo = "/moments",
+  redirectTo = "/home",
   compact,
   variant = "default",
 }: {
@@ -208,7 +215,7 @@ export function Composer({
     <form className={cn("flex flex-col gap-4", variant === "create" && "create-composer")} onSubmit={publish}>
       {variant === "create" ? (
         <div className="create-composer__header">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.push("/moments")}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => router.push("/home")}>
             Cancel
           </button>
           <h1 className="text-base font-semibold">Create a Moment</h1>

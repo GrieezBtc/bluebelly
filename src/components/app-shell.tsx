@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     setInstallBannerDismissed(window.localStorage.getItem("bemblo-install-dismissed") === "1");
   }, []);
 
-  const isMainTab = ["/home", "/moments", "/create", "/messages"].includes(pathname) || pathname.startsWith("/profile/");
+  const isMainTab = ["/home", "/create", "/messages"].includes(pathname) || pathname.startsWith("/profile/");
 
   return (
     <div className="app-shell">
