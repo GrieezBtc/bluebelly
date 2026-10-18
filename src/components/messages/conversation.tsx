@@ -290,7 +290,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const groupSendBlocked = conversation.kind === "group" && conversation.membersMuted && !isGroupAdmin;
 
   return (
-    <div className="flex h-[calc(100dvh-var(--nav-height))] min-h-0 flex-col overflow-hidden md:h-dvh">
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden md:h-dvh">
       <header className="sticky-top z-10 flex shrink-0 items-center gap-2 px-2 py-2">
         <button type="button" className="btn-icon md:hidden" onClick={() => router.push("/messages")} aria-label="Back to Messages">
           <Icon name="chevron-left" size={22} />

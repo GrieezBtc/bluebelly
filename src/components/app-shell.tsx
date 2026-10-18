@@ -76,6 +76,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     setInstallBannerDismissed(window.localStorage.getItem("bemblo-install-dismissed") === "1");
   }, []);
 
+  // Inside an open chat (1:1 or group) the bottom bar is hidden so the chat gets the full screen.
+  const inChat = /^\/messages\/\d+/.test(pathname);
   const isMainTab = ["/home", "/create", "/messages"].includes(pathname) || pathname.startsWith("/profile/");
 
   return (
@@ -165,7 +167,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        <main id="bemblo-main" className="app-main min-w-0">
+        <main id="bemblo-main" className={`app-main min-w-0${inChat ? " app-main--chat" : ""}`}>
           {children}
         </main>
       </div>
@@ -201,6 +203,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       ) : null}
 
       {/* Mobile bottom navigation */}
+      {!inChat ? (
       <nav className="bottom-nav safe-bottom md:hidden" aria-label="Main navigation">
         {items.map((item) => {
           const active = item.match(pathname);
@@ -233,6 +236,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           );
         })}
       </nav>
+      ) : null}
     </div>
   );
 }

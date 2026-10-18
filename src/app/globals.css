@@ -1134,6 +1134,10 @@ body {
     padding-bottom: 48px;
   }
 }
+/* Open chat: no bottom bar, so no space reserved for it. */
+.app-main.app-main--chat {
+  padding-bottom: 0;
+}
 .desktop-frame {
   width: 100%;
   margin: 0 auto;
