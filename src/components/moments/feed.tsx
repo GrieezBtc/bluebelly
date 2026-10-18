@@ -511,3 +511,76 @@ export function SuggestionsRail() {
     </section>
   );
 }
+
+/** Horizontal "Suggested for you" strip, like the people carousels on other social apps. */
+export function SuggestionsStrip() {
+  const { data, loading } = useQuery<{ users: UserSummary[] }>("/api/users?kind=suggestions");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [followed, setFollowed] = useState<Record<string, boolean>>({});
+  const { show } = useToast();
+
+  async function toggle(person: UserSummary, isFollowing: boolean) {
+    setBusy(person.username);
+    try {
+      const result = await api.post<{ message: string }>(`/api/users/${person.username}/actions`, {
+        action: isFollowing ? "unfollow" : "follow",
+      });
+      setFollowed((current) => ({ ...current, [person.username]: !isFollowing }));
+      show({ title: result.message, tone: "success" });
+    } catch (error) {
+      show({ title: "Action failed", description: error instanceof Error ? error.message : undefined, tone: "error" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex gap-3 overflow-hidden" aria-busy="true">
+        {[0, 1, 2].map((index) => (
+          <div key={index} className="skeleton h-40 w-36 shrink-0 rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+  const users = data?.users ?? [];
+  if (users.length === 0) return null;
+
+  return (
+    <section aria-labelledby="suggested-heading">
+      <div className="section-title">
+        <h2 className="h3" id="suggested-heading">
+          Suggested for you
+        </h2>
+        <Link href="/search" className="text-xs font-semibold text-brand">
+          See all
+        </Link>
+      </div>
+      <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x">
+        {users.map((person) => {
+          const isFollowing = followed[person.username] ?? person.isFollowing;
+          return (
+            <li key={person.id} className="card card-pad flex w-36 shrink-0 snap-start flex-col items-center gap-2 text-center">
+              <Link href={`/profile/${person.username}`} className="flex min-w-0 flex-col items-center gap-2">
+                <Avatar user={person} size="lg" />
+                <span className="w-full min-w-0">
+                  <span className="block truncate text-sm font-semibold">{person.name}</span>
+                  <span className="caption block truncate">@{person.username}</span>
+                </span>
+              </Link>
+              <button
+                type="button"
+                className={cn("btn btn-sm btn-block", isFollowing ? "btn-secondary" : "btn-primary")}
+                disabled={busy === person.username}
+                onClick={() => toggle(person, isFollowing)}
+              >
+                {busy === person.username ? <Spinner /> : null}
+                {isFollowing ? "Following" : "Follow"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
