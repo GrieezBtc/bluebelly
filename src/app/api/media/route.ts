@@ -121,16 +121,15 @@ export async function GET(request: Request) {
     const found = await readMedia(id);
     if (!found) throw notFound("Media not found.");
 
-    const { asset: storedAsset, buffer } = found;
+    const { asset: storedAsset, body, size } = found;
     const expired = storedAsset.expiresAt ? storedAsset.expiresAt.getTime() <= Date.now() : false;
     if (expired) throw new Response(JSON.stringify({ ok: false, error: { code: "media_expired", message: "This attachment has expired." } }), { status: 410, headers: { "Content-Type": "application/json" } });
 
-    const body = new Uint8Array(buffer);
-    return new Response(body, {
+    return new Response(body as BodyInit, {
       status: 200,
       headers: {
         "Content-Type": storedAsset.mimeType,
-        "Content-Length": String(body.byteLength),
+        "Content-Length": String(size),
         // Private response: browsers may cache it briefly, but shared caches
         // must never store authenticated/private media.
         "Cache-Control": "private, no-store",

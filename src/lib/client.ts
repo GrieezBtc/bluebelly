@@ -37,6 +37,55 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body.data;
 }
 
+
+/* ------------------------------------------------------------------ *
+ * Uploads: straight to the private Vercel Blob store when available
+ * (functions cannot take bodies over 4.5 MB), else through the server.
+ * ------------------------------------------------------------------ */
+
+let uploadMode: Promise<"blob" | "local"> | null = null;
+
+function getUploadMode() {
+  uploadMode ??= request<{ mode: "blob" | "local" }>("/api/upload")
+    .then((result) => result.mode)
+    .catch(() => {
+      uploadMode = null;
+      return "local" as const;
+    });
+  return uploadMode;
+}
+
+async function uploadViaBlob<T>(form: FormData): Promise<T | null> {
+  if ((await getUploadMode()) !== "blob") return null;
+  const file = form.get("file");
+  if (!(file instanceof File)) return null;
+  const scope = String(form.get("scope") ?? "moment");
+  const extension = (file.name.split(".").pop() || file.type.split("/")[1] || "bin").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8) || "bin";
+  const contentType = (file.type || "application/octet-stream").split(";")[0];
+  try {
+    const { upload } = await import("@vercel/blob/client");
+    const blob = await upload(`uploads/${scope}/file.${extension}`, file, {
+      access: "private",
+      contentType,
+      handleUploadUrl: "/api/upload/blob",
+      clientPayload: JSON.stringify({ scope }),
+    });
+    return await request<T>("/api/upload", {
+      method: "POST",
+      body: JSON.stringify({
+        pathname: blob.pathname,
+        scope,
+        width: Number(form.get("width")) || null,
+        height: Number(form.get("height")) || null,
+        duration: Number(form.get("duration")) || null,
+      }),
+    });
+  } catch (error) {
+    if (error instanceof ApiClientError) throw error;
+    throw new ApiClientError("upload_failed", error instanceof Error ? error.message : "Upload failed. Please try again.");
+  }
+}
+
 export const api = {
   get: <T,>(path: string) => request<T>(path),
   post: <T,>(path: string, body?: unknown) =>
@@ -46,7 +95,13 @@ export const api = {
   put: <T,>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: body === undefined ? undefined : JSON.stringify(body) }),
   del: <T,>(path: string) => request<T>(path, { method: "DELETE" }),
-  upload: <T,>(path: string, form: FormData) => request<T>(path, { method: "POST", body: form }),
+  upload: async <T,>(path: string, form: FormData): Promise<T> => {
+    if (path === "/api/upload") {
+      const viaBlob = await uploadViaBlob<T>(form);
+      if (viaBlob) return viaBlob;
+    }
+    return request<T>(path, { method: "POST", body: form });
+  },
 };
 
 export type QueryState<T> = {

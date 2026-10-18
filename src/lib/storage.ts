@@ -3,6 +3,8 @@ import path from "node:path";
 import { db } from "@/db";
 import { mediaAssets } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { del as blobDel, get as blobGet, head as blobHead } from "@vercel/blob";
+import { badRequest } from "@/lib/api";
 
 export const UPLOAD_DIR = process.env.BEMBLO_UPLOAD_DIR ?? path.join(process.cwd(), ".data", "uploads");
 
@@ -34,6 +36,15 @@ export function extFromMime(mime: string) {
 }
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+/** Vercel Blob is used whenever a Blob store is connected (BLOB_READ_WRITE_TOKEN present). Otherwise: local disk (dev). */
+export function blobEnabled() {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
+}
+
+const BLOB_PREFIX = "blob:";
+export const BLOB_PATH_PREFIX = "uploads/";
+const isBlobKey = (key: string) => key.startsWith(BLOB_PREFIX);
 
 export async function ensureUploadDir() {
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
@@ -68,13 +79,69 @@ export async function saveUpload(input: {
   return asset;
 }
 
-export async function readMedia(assetId: number) {
+/**
+ * Register a file the browser already uploaded straight to the (private) Blob store.
+ * The server never trusts the client: it re-reads the blob's metadata, enforces type/size,
+ * and refuses pathnames that were already claimed.
+ */
+export async function registerBlobUpload(input: {
+  ownerId: number;
+  pathname: string;
+  expiresInMs?: number | null;
+  width?: number | null;
+  height?: number | null;
+  durationSec?: number | null;
+}) {
+  const { pathname } = input;
+  if (!pathname.startsWith(BLOB_PATH_PREFIX) || pathname.includes("..")) throw badRequest("Invalid upload.");
+  const storageKey = `${BLOB_PREFIX}${pathname}`;
+
+  const existing = await db.select({ id: mediaAssets.id }).from(mediaAssets).where(eq(mediaAssets.storageKey, storageKey)).limit(1);
+  if (existing[0]) throw badRequest("That upload was already registered.");
+
+  let meta: Awaited<ReturnType<typeof blobHead>>;
+  try {
+    meta = await blobHead(pathname);
+  } catch {
+    throw badRequest("Upload not found. Please try again.");
+  }
+  const mimeType = (meta.contentType || "").toLowerCase();
+  if (meta.size > MAX_UPLOAD_BYTES || !/^(image|video|audio)\//.test(mimeType)) {
+    await blobDel(pathname).catch(() => undefined);
+    throw badRequest("Only photos, videos and voice notes up to 25 MB can be uploaded.");
+  }
+
+  const [asset] = await db
+    .insert(mediaAssets)
+    .values({
+      ownerId: input.ownerId,
+      storageKey,
+      mimeType,
+      sizeBytes: meta.size,
+      kind: kindFromMime(mimeType),
+      width: input.width ?? null,
+      height: input.height ?? null,
+      durationSec: input.durationSec ?? null,
+      expiresAt: input.expiresInMs ? new Date(Date.now() + input.expiresInMs) : null,
+    })
+    .returning();
+  return asset;
+}
+
+export type MediaBody = Uint8Array | ReadableStream<Uint8Array>;
+
+export async function readMedia(assetId: number): Promise<{ asset: typeof mediaAssets.$inferSelect; body: MediaBody; size: number } | null> {
   const row = await db.select().from(mediaAssets).where(eq(mediaAssets.id, assetId)).limit(1);
   const asset = row[0];
   if (!asset || asset.deletedAt) return null;
   try {
+    if (isBlobKey(asset.storageKey)) {
+      const result = await blobGet(asset.storageKey.slice(BLOB_PREFIX.length), { access: "private" });
+      if (!result || result.statusCode !== 200 || !result.stream) return null;
+      return { asset, body: result.stream, size: result.blob.size ?? asset.sizeBytes };
+    }
     const buffer = await fs.readFile(path.join(UPLOAD_DIR, asset.storageKey));
-    return { asset, buffer };
+    return { asset, body: new Uint8Array(buffer), size: buffer.byteLength };
   } catch {
     return null;
   }
@@ -86,7 +153,8 @@ export async function deleteAsset(assetId: number) {
   const asset = row[0];
   if (!asset) return;
   try {
-    await fs.unlink(path.join(UPLOAD_DIR, asset.storageKey));
+    if (isBlobKey(asset.storageKey)) await blobDel(asset.storageKey.slice(BLOB_PREFIX.length));
+    else await fs.unlink(path.join(UPLOAD_DIR, asset.storageKey));
   } catch {
     /* already gone */
   }
