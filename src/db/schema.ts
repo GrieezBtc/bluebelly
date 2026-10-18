@@ -248,6 +248,10 @@ export const messages = pgTable(
     maxRetentionAt: timestamp("max_retention_at", { withTimezone: true }),
     firstViewedAt: timestamp("first_viewed_at", { withTimezone: true }),
     expiredAt: timestamp("expired_at", { withTimezone: true }),
+    // Edit / delete support. A deleted message keeps its row as a tombstone but loses its content.
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedById: integer("deleted_by_id"),
   },
   (t) => [
     index("messages_conversation_idx").on(t.conversationId),

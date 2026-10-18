@@ -127,6 +127,14 @@ export type MessageView = {
   expiresLabel: string | null;
   notViewedYet: boolean;
   expired: boolean;
+  /** Set when the sender edited the text. */
+  editedAt: string | null;
+  /** Content is gone; show a placeholder instead. */
+  deleted: boolean;
+  deletedBy: "sender" | "admin" | null;
+  /** Permissions for the viewer, decided by the server. */
+  canEdit: boolean;
+  canDelete: boolean;
 };
 
 export type ConversationDetail = {

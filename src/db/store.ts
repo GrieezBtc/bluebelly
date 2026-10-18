@@ -997,6 +997,7 @@ export async function listConversations(
         senderId: messages.senderId,
         createdAt: messages.createdAt,
         isSystem: messages.isSystem,
+        deletedAt: messages.deletedAt,
       })
       .from(messages)
       .where(and(inArray(messages.conversationId, ids), or(isNull(messages.expiresAt), gt(messages.expiresAt, now))))
@@ -1029,7 +1030,9 @@ export async function listConversations(
     const others = members.filter((u) => u.id !== viewer.id);
     const last = lastMap.get(m.conversationId);
     const preview = last
-      ? last.isSystem
+      ? last.deletedAt
+        ? "Message deleted"
+        : last.isSystem
         ? last.body
         : last.kind === "text"
           ? last.body
@@ -1091,6 +1094,9 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       senderId: messages.senderId,
       expiresAt: messages.expiresAt,
       firstViewedAt: messages.firstViewedAt,
+      editedAt: messages.editedAt,
+      deletedAt: messages.deletedAt,
+      deletedById: messages.deletedById,
     })
     .from(messages)
     .where(
@@ -1129,12 +1135,15 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
     if (isMine && !m.isSystem && conversation.kind === "direct") {
       status = m.firstViewedAt ? "viewed" : "sent";
     }
+    const deleted = m.deletedAt !== null;
+    const isAdminHere = conversation.kind === "group" && membership.role === "admin" && membership.state === "active";
     return {
       id: m.id,
       kind: m.kind,
-      body: m.body,
-      mediaUrl: m.mediaUrl,
-      durationSec: m.durationSec,
+      // Deleted messages never leave the server with their content.
+      body: deleted ? "" : m.body,
+      mediaUrl: deleted ? null : m.mediaUrl,
+      durationSec: deleted ? null : m.durationSec,
       isSystem: m.isSystem,
       createdAt: m.createdAt.toISOString(),
       sender: senderMap.get(m.senderId) ?? null,
@@ -1142,8 +1151,13 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       status,
       expiresAt: m.expiresAt ? m.expiresAt.toISOString() : null,
       expiresLabel: label,
-      notViewedYet,
+      notViewedYet: deleted ? false : notViewedYet,
       expired: false,
+      editedAt: m.editedAt ? m.editedAt.toISOString() : null,
+      deleted,
+      deletedBy: deleted ? (m.deletedById === m.senderId ? "sender" : "admin") : null,
+      canEdit: !deleted && !m.isSystem && isMine && m.kind === "text",
+      canDelete: !deleted && !m.isSystem && (isMine || isAdminHere),
     } satisfies MessageView;
   });
 
@@ -1194,6 +1208,7 @@ export async function markConversationRead(viewer: AuthUser, conversationId: num
         eq(messages.conversationId, conversationId),
         ne(messages.senderId, viewer.id),
         isNull(messages.firstViewedAt),
+        isNull(messages.deletedAt),
         isNull(messages.expiredAt),
       ),
     );
@@ -1301,7 +1316,61 @@ export async function sendMessage(
       conversation.kind === "group" ? timeLeftLabel(created.expiresAt?.toISOString() ?? null) : EXPIRY_COPY.directNotViewed,
     notViewedYet: conversation.kind === "direct",
     expired: false,
+    editedAt: null,
+    deleted: false,
+    deletedBy: null,
+    canEdit: created.kind === "text",
+    canDelete: true,
   };
+}
+
+/** Edit your own text message (1:1 or group). Admins can never edit other people's messages. */
+export async function editMessage(viewer: AuthUser, conversationId: number, messageId: number, rawBody: string) {
+  await requireActiveConversationMember(viewer, conversationId);
+  const body = rawBody.trim();
+  if (body.length === 0) throw new Error("empty");
+  if (body.length > 4000) throw new Error("too_long");
+  const now = new Date();
+  const [message] = await db
+    .select()
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.conversationId, conversationId)))
+    .limit(1);
+  if (!message || message.isSystem || message.expiredAt || (message.expiresAt && message.expiresAt <= now)) throw new Error("not_found");
+  if (message.deletedAt) throw new Error("message_deleted");
+  if (message.senderId !== viewer.id) throw new Error("not_author");
+  if (message.kind !== "text") throw new Error("not_text");
+  if (message.body === body) return { id: message.id, body: message.body, editedAt: message.editedAt?.toISOString() ?? null };
+  const [updated] = await db.update(messages).set({ body, editedAt: now }).where(eq(messages.id, messageId)).returning();
+  return { id: updated.id, body: updated.body, editedAt: now.toISOString() };
+}
+
+/**
+ * Delete a message for everyone. Senders can delete their own messages anywhere;
+ * in groups an admin can also delete anyone's message. The row stays as a tombstone, the content does not.
+ */
+export async function deleteMessage(viewer: AuthUser, conversationId: number, messageId: number) {
+  const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
+  if (!conversation) throw new Error("not_found");
+  const membership = await requireActiveConversationMember(viewer, conversationId);
+  const [message] = await db
+    .select()
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.conversationId, conversationId)))
+    .limit(1);
+  if (!message || message.isSystem) throw new Error("not_found");
+  if (message.deletedAt) return { id: message.id, deleted: true };
+  const isAuthor = message.senderId === viewer.id;
+  const isGroupAdmin = conversation.kind === "group" && membership.role === "admin" && membership.state === "active";
+  if (!isAuthor && !isGroupAdmin) throw new Error("not_author");
+
+  const mediaId = message.mediaId ?? (await ownedMediaId(message.senderId, message.mediaUrl).catch(() => null));
+  await db
+    .update(messages)
+    .set({ body: "", mediaUrl: null, mediaId: null, durationSec: null, deletedAt: new Date(), deletedById: viewer.id })
+    .where(eq(messages.id, messageId));
+  if (mediaId) await deleteAsset(mediaId);
+  return { id: message.id, deleted: true };
 }
 
 async function requireActiveConversationMember(viewer: AuthUser, conversationId: number) {

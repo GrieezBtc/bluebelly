@@ -47,6 +47,9 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [addMemberValue, setAddMemberValue] = useState("");
   const [messageMenu, setMessageMenu] = useState<MessageView | null>(null);
+  const [editTarget, setEditTarget] = useState<MessageView | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<MessageView | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -250,6 +253,34 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const { conversation, messages } = detail;
   const isRequest = conversation.state === "requested";
   const currentMember = conversation.members.find((member) => member.id === user?.id);
+  async function saveEdit() {
+    if (!editTarget) return;
+    const target = editTarget;
+    const text = editValue.trim();
+    if (text.length === 0) return;
+    setEditTarget(null);
+    try {
+      await api.patch(`/api/conversations/${conversationId}/messages/${target.id}`, { body: text });
+      show({ title: "Message edited", tone: "success" });
+    } catch (err) {
+      show({ title: err instanceof Error ? err.message : "Could not edit that message.", tone: "error" });
+    }
+    await load(true);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    try {
+      await api.del(`/api/conversations/${conversationId}/messages/${target.id}`);
+      show({ title: "Message deleted", tone: "success" });
+    } catch (err) {
+      show({ title: err instanceof Error ? err.message : "Could not delete that message.", tone: "error" });
+    }
+    setDeleteTarget(null);
+    await load(true);
+  }
+
   const isGroupAdmin = conversation.kind === "group" && currentMember?.role === "admin";
   const groupSendBlocked = conversation.kind === "group" && conversation.membersMuted && !isGroupAdmin;
 
@@ -555,6 +586,35 @@ export function ConversationView({ conversationId }: { conversationId: number })
 
       <Overlay open={Boolean(messageMenu)} onClose={() => setMessageMenu(null)} title="Message options">
         <div className="flex flex-col gap-1">
+          {messageMenu?.canEdit ? (
+            <button
+              type="button"
+              className="list-row rounded-md"
+              onClick={() => {
+                setEditValue(messageMenu.body);
+                setEditTarget(messageMenu);
+                setMessageMenu(null);
+              }}
+            >
+              <Icon name="edit" size={20} />
+              <span className="flex-1 text-left text-sm font-semibold">Edit message</span>
+            </button>
+          ) : null}
+          {messageMenu?.canDelete ? (
+            <button
+              type="button"
+              className="list-row rounded-md"
+              onClick={() => {
+                setDeleteTarget(messageMenu);
+                setMessageMenu(null);
+              }}
+            >
+              <Icon name="trash" size={20} />
+              <span className="flex-1 text-left text-sm font-semibold text-coral">
+                {messageMenu.isMine ? "Delete message" : "Delete as admin"}
+              </span>
+            </button>
+          ) : null}
           {messageMenu?.body ? (
             <button
               type="button"
@@ -569,17 +629,19 @@ export function ConversationView({ conversationId }: { conversationId: number })
               <span className="flex-1 text-left text-sm font-semibold">Copy text</span>
             </button>
           ) : null}
-          <button
-            type="button"
-            className="list-row rounded-md"
-            onClick={() => {
-              setReportOpen(true);
-              setMessageMenu(null);
-            }}
-          >
-            <Icon name="flag" size={20} />
-            <span className="flex-1 text-left text-sm font-semibold">Report message</span>
-          </button>
+          {messageMenu && !messageMenu.isMine ? (
+            <button
+              type="button"
+              className="list-row rounded-md"
+              onClick={() => {
+                setReportOpen(true);
+                setMessageMenu(null);
+              }}
+            >
+              <Icon name="flag" size={20} />
+              <span className="flex-1 text-left text-sm font-semibold">Report message</span>
+            </button>
+          ) : null}
           {messageMenu?.expiresAt ? (
             <p className="caption px-3 py-2">
               This message disappears {messageMenu.expiresLabel ?? "soon"}. Expiring messages cannot stop screenshots or screen
@@ -590,6 +652,45 @@ export function ConversationView({ conversationId }: { conversationId: number })
           )}
         </div>
       </Overlay>
+
+      <Overlay open={Boolean(editTarget)} onClose={() => setEditTarget(null)} title="Edit message" variant="dialog">
+        <Field label="Message" htmlFor="edit-message">
+          <textarea
+            id="edit-message"
+            className="input min-h-24"
+            maxLength={4000}
+            value={editValue}
+            onChange={(event) => setEditValue(event.target.value)}
+          />
+        </Field>
+        <div className="flex justify-end gap-2 pt-4">
+          <button type="button" className="btn btn-secondary" onClick={() => setEditTarget(null)}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={editValue.trim().length === 0 || editValue.trim() === editTarget?.body}
+            onClick={() => void saveEdit()}
+          >
+            Save
+          </button>
+        </div>
+      </Overlay>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete this message?"
+        description={
+          deleteTarget?.isMine
+            ? "It will be removed for everyone in this conversation. This cannot be undone."
+            : `You are removing ${deleteTarget?.sender?.name ?? "this member"}'s message for everyone as a group admin. This cannot be undone.`
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={() => confirmDelete()}
+      />
 
       <ReportDialog
         open={reportOpen}
@@ -633,6 +734,20 @@ function MessageBubble({
     );
   }
 
+  if (message.deleted) {
+    return (
+      <li className={cn("flex items-end gap-2", message.isMine ? "justify-end" : "justify-start")}>
+        <p className="bubble bubble-system italic">
+          {message.deletedBy === "admin"
+            ? "A group admin deleted this message"
+            : message.isMine
+              ? "You deleted this message"
+              : `${message.sender?.name ?? "Someone"} deleted this message`}
+        </p>
+      </li>
+    );
+  }
+
   const countdown = message.expiresAt ? timeLeftLabel(message.expiresAt) : null;
   const expiredSoon = message.expiresAt ? new Date(message.expiresAt).getTime() - now < 60 * 60 * 1000 : false;
 
@@ -665,6 +780,7 @@ function MessageBubble({
 
         <div className="bubble-meta">
           <span>{formatClock(message.createdAt)}</span>
+          {message.editedAt ? <span className="italic">edited</span> : null}
           {message.isMine ? (
             <span className="flex items-center gap-1" title={message.status === "viewed" ? "Seen" : "Sent"}>
               <Icon name={message.status === "viewed" ? "check-double" : "check"} size={13} />
