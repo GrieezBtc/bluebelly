@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { reports } from "@/db/schema";
 import { ApiError, badRequest, fail, ok, readJson, requireString, toInt } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
+import { notifyAdmins } from "@/db/store";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,11 @@ export async function POST(request: Request) {
         details,
       })
       .returning();
+
+    // Tell the admins there is something new in the inbox. Never block the reporter on this.
+    await notifyAdmins(`New report #${created.id}: ${reason.replace(/_/g, " ")} (${targetType})`).catch((error) =>
+      console.error("[bemblo:admin-notify]", error),
+    );
 
     return ok(
       {

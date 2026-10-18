@@ -16,6 +16,7 @@ import {
   moments,
   mutes,
   notifications,
+  reports,
   searchHistory,
   supportTickets,
   users,
@@ -51,6 +52,7 @@ import {
 import { deleteAsset, ownedMediaId } from "@/lib/storage";
 import { timeLeftLabel } from "@/lib/utils";
 import { sendPushToUser } from "@/lib/push";
+import { isAdminUser } from "@/lib/admin";
 import { generateShareCode, isValidShareCode } from "@/lib/share";
 import { sendNotificationEmail } from "@/lib/email";
 import type { AuthUser } from "@/lib/auth";
@@ -75,6 +77,7 @@ type PublicUserSource = {
   avatarUrl: string | null;
   accent: string;
   verified: boolean;
+  isOfficial?: boolean;
   profilePrivacy: "public" | "private";
 };
 
@@ -87,6 +90,7 @@ export function toPublicUser(user: PublicUserSource): PublicUser {
     avatarUrl: user.avatarUrl,
     accent: user.accent,
     verified: user.verified,
+    official: user.isOfficial ?? false,
     profilePrivacy: user.profilePrivacy,
   };
 }
@@ -99,6 +103,7 @@ const PUBLIC_USER_COLUMNS = {
   avatarUrl: users.avatarUrl,
   accent: users.accent,
   verified: users.verified,
+  isOfficial: users.isOfficial,
   profilePrivacy: users.profilePrivacy,
 };
 
@@ -728,6 +733,7 @@ function notificationPath(input: { entityType?: string | null; entityId?: number
   if (input.entityType === "conversation" && input.entityId) return `/messages/${input.entityId}`;
   if (input.entityType === "moment" && input.entityId) return `/moments/${input.entityId}`;
   if (input.entityType === "user" && actorUsername) return `/profile/${actorUsername}`;
+  if (input.entityType === "admin") return "/admin";
   return "/notifications";
 }
 
@@ -809,6 +815,7 @@ export async function listNotifications(viewer: AuthUser): Promise<NotificationV
     if (row.entityType === "moment" && row.entityId) href = `/moments/${row.entityId}`;
     if (row.entityType === "conversation" && row.entityId) href = `/messages/${row.entityId}`;
     if (row.entityType === "user" && actor) href = `/profile/${actor.username}`;
+    if (row.entityType === "admin") href = "/admin";
     return {
       id: row.id,
       type: row.type,
@@ -902,6 +909,7 @@ export async function sessionPayload(user: AuthUser): Promise<SessionUser> {
     notificationPrefs: normalizePrefs(user.notificationPrefs),
     sensitiveContent: user.sensitiveContent,
     onboarded: user.onboardedAt !== null,
+    isAdmin: isAdminUser(user),
     counts: {
       followers: Number(counts?.followers ?? 0),
       following: Number(counts?.following ?? 0),
@@ -940,7 +948,7 @@ export async function ensureDirectConversation(viewer: AuthUser, targetUsername:
   const existing = await findDirectConversation(viewer.id, target.id);
   if (existing) return { conversationId: existing, created: false, requested: false };
   const relation = await getRelation(viewer.id, target.id);
-  const permission = canMessage(viewer.id, { id: target.id, messagePermission: target.messagePermission }, relation);
+  const permission = canMessage(viewer.id, { id: target.id, messagePermission: target.messagePermission, isOfficial: target.isOfficial }, relation);
   if (!permission.allowed) {
     return { error: "not_allowed" as const, message: messagePermissionBlockCopy(permission.reason, target.name) };
   }
@@ -969,7 +977,10 @@ export async function ensureDirectConversation(viewer: AuthUser, targetUsername:
 
 export async function createGroupConversation(creator: AuthUser, memberUsernames: string[], title: string, imageUrl: string | null) {
   const rows = memberUsernames.length
-    ? await db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.username, memberUsernames.map((u) => u.toLowerCase())))
+    ? await db
+        .select({ id: users.id, username: users.username })
+        .from(users)
+        .where(and(inArray(users.username, memberUsernames.map((u) => u.toLowerCase())), eq(users.isOfficial, false)))
     : [];
   if (rows.length === 0) return null;
   const [conversation] = await db
@@ -1578,8 +1589,12 @@ export async function respondToConversation(
       await requireGroupAdmin(viewer, conversationId);
       const username = value?.trim().toLowerCase();
       if (!username) return { ok: false as const };
-      const [target] = await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.username, username)).limit(1);
-      if (!target) throw new Error("user_not_found");
+      const [target] = await db
+        .select({ id: users.id, name: users.name, isOfficial: users.isOfficial })
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+      if (!target || target.isOfficial) throw new Error("user_not_found");
       if (target.id === viewer.id) throw new Error("self_member");
       const [existing] = await db
         .select()
@@ -1775,26 +1790,43 @@ export async function recordSearch(viewer: AuthUser, query: string) {
 
 export async function userSummaryList(
   viewer: AuthUser,
-  kind: "followers" | "following" | "pending" | "blocked" | "muted" | "suggestions",
+  kind: "followers" | "following" | "pending" | "blocked" | "muted" | "suggestions" | "official",
 ): Promise<UserSummary[]> {
   let ids: number[] = [];
-  if (kind === "suggestions") {
+  if (kind === "official") {
+    // Official accounts the viewer is not following yet (drives the "Follow Bemblo" card).
     const following = await acceptedFollowingIds(viewer.id);
     const { blockedIds } = await viewerExclusions(viewer.id);
     const rows = await db
       .select({ id: users.id })
       .from(users)
-      .where(and(notInArray(users.id, [viewer.id, ...following, ...blockedIds]), eq(users.verified, true)))
+      .where(and(eq(users.isOfficial, true), notInArray(users.id, [viewer.id, ...following, ...blockedIds])))
+      .limit(3);
+    ids = rows.map((r) => r.id);
+  } else if (kind === "suggestions") {
+    const following = await acceptedFollowingIds(viewer.id);
+    const { blockedIds } = await viewerExclusions(viewer.id);
+    // The official Bemblo account is always suggested first until the viewer follows it.
+    const officialRows = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.isOfficial, true), notInArray(users.id, [viewer.id, ...following, ...blockedIds])))
+      .limit(2);
+    const officialIds = officialRows.map((r) => r.id);
+    const rows = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(notInArray(users.id, [viewer.id, ...following, ...blockedIds, ...officialIds]), eq(users.verified, true)))
       .orderBy(desc(users.lastActiveAt))
       .limit(6);
-    ids = rows.map((r) => r.id);
+    ids = [...officialIds, ...rows.map((r) => r.id)];
     if (ids.length < 4) {
       const extra = await db
         .select({ id: users.id })
         .from(users)
         .where(notInArray(users.id, [viewer.id, ...following, ...blockedIds, ...ids]))
         .orderBy(desc(users.lastActiveAt))
-        .limit(6 - ids.length);
+        .limit(Math.max(6 - ids.length, 0));
       ids = [...ids, ...extra.map((r) => r.id)];
     }
   } else if (kind === "blocked") {
@@ -1824,12 +1856,12 @@ export async function userSummaryList(
   }
 
   if (ids.length === 0) return [];
-  const userRows = await db.select().from(users).where(inArray(users.id, ids));
+  const userRows = (await db.select().from(users).where(inArray(users.id, ids))).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
   const mutedIds = kind === "muted" ? new Set(ids) : new Set<number>();
   return Promise.all(
     userRows.map(async (user) => {
       const relation = await getRelation(viewer.id, user.id);
-      const permission = canMessage(viewer.id, { id: user.id, messagePermission: user.messagePermission }, relation);
+      const permission = canMessage(viewer.id, { id: user.id, messagePermission: user.messagePermission, isOfficial: user.isOfficial }, relation);
       return {
         ...toPublicUser(user),
         isSelf: user.id === viewer.id,
@@ -1915,7 +1947,7 @@ export async function getPublicProfile(viewerId: number | null, username: string
   const blocked = relation.viewerBlockedTarget || relation.targetBlockedViewer;
   const restricted = !isSelf && !blocked && user.profilePrivacy === "private" && !relation.viewerFollows;
   const permission = viewerId
-    ? canMessage(viewerId, { id: user.id, messagePermission: user.messagePermission }, relation)
+    ? canMessage(viewerId, { id: user.id, messagePermission: user.messagePermission, isOfficial: user.isOfficial }, relation)
     : ({ allowed: false, reason: "nobody", shouldRequest: false } as const);
   const counts = await profileCounts(user.id);
   const state: RelationState = isSelf
@@ -1969,6 +2001,186 @@ export async function listSupportTickets(userId: number) {
     .where(eq(supportTickets.userId, userId))
     .orderBy(desc(supportTickets.createdAt))
     .limit(20);
+}
+
+/* ------------------------------------------------------------------ *
+ * Admin inbox: reports + support requests
+ * ------------------------------------------------------------------ */
+
+async function adminUserIds(): Promise<number[]> {
+  const emails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(emails.length ? or(eq(users.isAdmin, true), inArray(sql`lower(${users.email})`, emails)) : eq(users.isAdmin, true));
+  return rows.map((row) => row.id);
+}
+
+/** Tell every admin that something new needs attention (in-app + push + email, via createNotification). */
+export async function notifyAdmins(preview: string) {
+  const ids = await adminUserIds();
+  for (const id of ids) {
+    await createNotification({ userId: id, type: "system", entityType: "admin", entityId: null, preview });
+  }
+}
+
+export type AdminReportRow = {
+  id: number;
+  createdAt: string;
+  status: "open" | "reviewing" | "resolved" | "dismissed";
+  reason: string;
+  details: string | null;
+  targetType: "user" | "moment" | "message" | "comment";
+  targetId: number | null;
+  targetLabel: string | null;
+  targetHref: string | null;
+  reporter: { username: string; name: string } | null;
+  resolutionNote: string | null;
+};
+
+export type AdminTicketRow = {
+  id: number;
+  createdAt: string;
+  status: "open" | "waiting" | "resolved";
+  topic: string;
+  subject: string;
+  body: string;
+  email: string;
+  user: { username: string; name: string } | null;
+  adminNote: string | null;
+};
+
+export async function getAdminInbox() {
+  const reportRows = await db
+    .select({
+      id: reports.id,
+      createdAt: reports.createdAt,
+      status: reports.status,
+      reason: reports.reason,
+      details: reports.details,
+      targetType: reports.targetType,
+      targetId: reports.targetId,
+      targetLabel: reports.targetLabel,
+      resolutionNote: reports.resolutionNote,
+      username: users.username,
+      name: users.name,
+    })
+    .from(reports)
+    .leftJoin(users, eq(users.id, reports.reporterId))
+    .orderBy(desc(reports.createdAt))
+    .limit(200);
+  const ticketRows = await db
+    .select({
+      id: supportTickets.id,
+      createdAt: supportTickets.createdAt,
+      status: supportTickets.status,
+      topic: supportTickets.topic,
+      subject: supportTickets.subject,
+      body: supportTickets.body,
+      email: supportTickets.email,
+      adminNote: supportTickets.adminNote,
+      username: users.username,
+      name: users.name,
+    })
+    .from(supportTickets)
+    .leftJoin(users, eq(users.id, supportTickets.userId))
+    .orderBy(desc(supportTickets.createdAt))
+    .limit(200);
+
+  const reportItems: AdminReportRow[] = reportRows.map((row) => {
+    let targetHref: string | null = null;
+    if (row.targetType === "moment" && row.targetId) targetHref = `/moments/${row.targetId}`;
+    if (row.targetType === "user" && row.targetLabel?.startsWith("@")) targetHref = `/profile/${row.targetLabel.slice(1)}`;
+    return {
+      id: row.id,
+      createdAt: row.createdAt.toISOString(),
+      // Older rows used "closed"; treat that as resolved.
+      status: row.status === "closed" ? "resolved" : row.status,
+      reason: row.reason,
+      details: row.details,
+      targetType: row.targetType,
+      targetId: row.targetId,
+      targetLabel: row.targetLabel,
+      targetHref,
+      reporter: row.username ? { username: row.username, name: row.name ?? row.username } : null,
+      resolutionNote: row.resolutionNote,
+    };
+  });
+  const ticketItems: AdminTicketRow[] = ticketRows.map((row) => ({
+    id: row.id,
+    createdAt: row.createdAt.toISOString(),
+    status: row.status,
+    topic: row.topic,
+    subject: row.subject,
+    body: row.body,
+    email: row.email,
+    user: row.username ? { username: row.username, name: row.name ?? row.username } : null,
+    adminNote: row.adminNote,
+  }));
+  return { reports: reportItems, tickets: ticketItems };
+}
+
+export async function updateReportStatus(
+  admin: AuthUser,
+  reportId: number,
+  status: "reviewing" | "resolved" | "dismissed",
+  note: string,
+) {
+  const [report] = await db.select().from(reports).where(eq(reports.id, reportId)).limit(1);
+  if (!report) throw new Error("not_found");
+  const done = status === "resolved" || status === "dismissed";
+  await db
+    .update(reports)
+    .set({
+      status,
+      resolutionNote: note || null,
+      resolvedAt: done ? new Date() : null,
+      resolvedById: done ? admin.id : null,
+    })
+    .where(eq(reports.id, reportId));
+  // Let the reporter know we looked at it.
+  if (done && report.reporterId > 0 && report.status !== status) {
+    await createNotification({
+      userId: report.reporterId,
+      type: "system",
+      entityType: null,
+      entityId: null,
+      preview: note
+        ? `Update on your report: ${note.slice(0, 120)}`
+        : "Thanks for your report. Our team reviewed it and took the appropriate action.",
+    });
+  }
+  return { id: reportId, status };
+}
+
+export async function updateTicketStatus(
+  admin: AuthUser,
+  ticketId: number,
+  status: "open" | "waiting" | "resolved",
+  note: string,
+) {
+  void admin;
+  const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.id, ticketId)).limit(1);
+  if (!ticket) throw new Error("not_found");
+  await db
+    .update(supportTickets)
+    .set({ status, adminNote: note || null, resolvedAt: status === "resolved" ? new Date() : null })
+    .where(eq(supportTickets.id, ticketId));
+  if (status === "resolved" && ticket.userId && ticket.status !== "resolved") {
+    await createNotification({
+      userId: ticket.userId,
+      type: "system",
+      entityType: null,
+      entityId: null,
+      preview: note
+        ? `Support request #${ticketId} resolved: ${note.slice(0, 120)}`
+        : `Your support request #${ticketId} was marked resolved.`,
+    });
+  }
+  return { id: ticketId, status };
 }
 
 export type { MemberState, MessagePermission };

@@ -93,6 +93,11 @@ export function ProfileMenu({ open, onClose }: { open: boolean; onClose: () => v
               <Row key={item.href} item={item} />
             ))}
           </Section>
+          {user?.isAdmin ? (
+            <Section title="Admin">
+              <Row item={{ href: "/admin", label: "Admin inbox", blurb: "Reports and support requests", icon: "alert" }} />
+            </Section>
+          ) : null}
           <Section title="About & help">
             {ABOUT.map((item) => (
               <Row key={item.href} item={item} />

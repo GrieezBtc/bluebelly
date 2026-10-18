@@ -520,6 +520,47 @@ export function SuggestionsRail() {
 }
 
 /** Horizontal "Suggested for you" strip, like the people carousels on other social apps. */
+/** "Follow Bemblo" card: shown on Home until the viewer follows the official account. */
+export function OfficialFollowCard() {
+  const { data } = useQuery<{ users: UserSummary[] }>("/api/users?kind=official");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const { show } = useToast();
+  const official = data?.users?.[0];
+  if (!official || done) return null;
+
+  async function follow(person: UserSummary) {
+    setBusy(true);
+    try {
+      await api.post(`/api/users/${person.username}/actions`, { action: "follow" });
+      show({ title: `You are following ${person.name}`, description: "You will see announcements and updates in your feed.", tone: "success" });
+      setDone(true);
+    } catch (error) {
+      show({ title: "Action failed", description: error instanceof Error ? error.message : undefined, tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card card-pad flex items-center gap-3" aria-label="Follow the official Bemblo account">
+      <Avatar user={official} size="md" />
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-1 text-sm font-semibold">
+          <Link href={`/profile/${official.username}`} className="truncate hover:underline">
+            {official.name}
+          </Link>
+          <Icon name="shield-check" size={14} className="shrink-0 text-brand" />
+        </p>
+        <p className="caption">Follow for announcements and what is coming next on Bemblo.</p>
+      </div>
+      <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void follow(official)}>
+        Follow
+      </button>
+    </section>
+  );
+}
+
 export function SuggestionsStrip() {
   const { data, loading } = useQuery<{ users: UserSummary[] }>("/api/users?kind=suggestions");
   const [busy, setBusy] = useState<string | null>(null);

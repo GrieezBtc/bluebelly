@@ -1,6 +1,6 @@
 import { badRequest, fail, ok, readJson, requireString } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
-import { createSupportTicket, listSupportTickets } from "@/db/store";
+import { createSupportTicket, listSupportTickets, notifyAdmins } from "@/db/store";
 import { SUPPORT_TOPICS, FAQS, HELP_CATEGORIES } from "@/lib/content";
 import { validateEmail } from "@/lib/utils";
 
@@ -46,6 +46,9 @@ export async function POST(request: Request) {
       subject,
       body: message,
     });
+    await notifyAdmins(`New support request #${ticket.id}: ${subject.slice(0, 60)}`).catch((error) =>
+      console.error("[bemblo:admin-notify]", error),
+    );
     return ok(
       {
         id: ticket.id,

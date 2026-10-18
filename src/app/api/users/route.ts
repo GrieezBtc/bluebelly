@@ -4,7 +4,7 @@ import { userSummaryList } from "@/db/store";
 
 export const dynamic = "force-dynamic";
 
-const KINDS = ["suggestions", "followers", "following", "pending", "blocked", "muted"] as const;
+const KINDS = ["suggestions", "official", "followers", "following", "pending", "blocked", "muted"] as const;
 
 /** GET /api/users?kind=followers|following|pending|blocked|muted|suggestions */
 export async function GET(request: Request) {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { PageHeader } from "@/components/app-shell";
-import { FeedList, SuggestionsStrip } from "@/components/moments/feed";
+import { FeedList, OfficialFollowCard, SuggestionsStrip } from "@/components/moments/feed";
 
 /** Home: a clean feed of Moments with people suggestions after the first few posts. */
 export default function HomePage() {
@@ -18,6 +18,7 @@ export default function HomePage() {
         }
       />
       <div className="page flex flex-col gap-4 px-4 pb-6">
+        <OfficialFollowCard />
         <FeedList
           query="/api/moments?limit=10"
           inlineAfter={3}

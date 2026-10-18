@@ -28,6 +28,8 @@ export type PublicUser = {
   avatarUrl: string | null;
   accent: string;
   verified: boolean;
+  /** Bemblo's official account (announcements). Optional so older payloads still type-check. */
+  official?: boolean;
   profilePrivacy: ProfilePrivacy;
 };
 
@@ -197,6 +199,7 @@ export type SessionUser = PublicUser & {
   notificationPrefs: NotificationPrefs;
   sensitiveContent: "show" | "warn" | "hide";
   onboarded: boolean;
+  isAdmin: boolean;
   counts: { followers: number; following: number; moments: number; unreadNotifications: number; unreadMessages: number; requests: number };
 };
 

@@ -67,6 +67,10 @@ export const users = pgTable(
     sensitiveContent: text("sensitive_content").$type<"show" | "warn" | "hide">().default("warn").notNull(),
     notificationPrefs: jsonb("notification_prefs").$type<NotificationPrefs>(),
     verified: boolean("verified").default(false).notNull(),
+    // Bemblo's own announcement account: followable, but never messageable.
+    isOfficial: boolean("is_official").default(false).notNull(),
+    // Can open the admin inbox (reports + support requests).
+    isAdmin: boolean("is_admin").default(false).notNull(),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     rememberUnviewedMessages: boolean("retain_unviewed_messages").default(false).notNull(),
     lastEmailNotifiedAt: timestamp("last_email_notified_at", { withTimezone: true }),
@@ -314,7 +318,10 @@ export const reports = pgTable("reports", {
   targetLabel: text("target_label"),
   reason: text("reason").notNull(),
   details: text("details"),
-  status: text("status").$type<"open" | "reviewing" | "closed">().default("open").notNull(),
+  status: text("status").$type<"open" | "reviewing" | "closed" | "resolved" | "dismissed">().default("open").notNull(),
+  resolutionNote: text("resolution_note"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolvedById: integer("resolved_by_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -326,6 +333,8 @@ export const supportTickets = pgTable("support_tickets", {
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   status: text("status").$type<"open" | "waiting" | "resolved">().default("open").notNull(),
+  adminNote: text("admin_note"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

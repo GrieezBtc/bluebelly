@@ -118,9 +118,11 @@ export function effectiveAudience(
 /** System 3: messaging permissions (independent from the two systems above). */
 export function canMessage(
   senderId: number,
-  target: { id: number; messagePermission: MessagePermission },
+  target: { id: number; messagePermission: MessagePermission; isOfficial?: boolean },
   relation: Relation,
-): { allowed: boolean; reason: "allowed" | "nobody" | "followers" | "following" | "blocked" | "blocked_by"; shouldRequest: boolean } {
+): { allowed: boolean; reason: "allowed" | "nobody" | "followers" | "following" | "blocked" | "blocked_by" | "official"; shouldRequest: boolean } {
+  // The official Bemblo account is announcements-only: it can be followed, never messaged.
+  if (target.isOfficial) return { allowed: false, reason: "official", shouldRequest: false };
   if (relation.viewerBlockedTarget) return { allowed: false, reason: "blocked", shouldRequest: false };
   if (relation.targetBlockedViewer) return { allowed: false, reason: "blocked_by", shouldRequest: false };
   switch (target.messagePermission) {
@@ -151,6 +153,8 @@ export const MESSAGE_PERMISSION_COPY: Record<MessagePermission, { label: string;
 
 export function messagePermissionBlockCopy(reason: string, name: string): string {
   switch (reason) {
+    case "official":
+      return `${name} is Bemblo's official account and is for announcements only. For help, use Help & Support.`;
     case "nobody":
       return `${name} is not accepting messages right now.`;
     case "followers":

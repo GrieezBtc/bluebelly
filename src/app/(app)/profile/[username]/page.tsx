@@ -105,7 +105,8 @@ function ProfileInner() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="h2 truncate">{profile.user.name}</h1>
-              {profile.user.verified ? <Icon name="shield-check" size={16} className="text-brand" /> : null}
+              {profile.user.verified || profile.user.official ? <Icon name="shield-check" size={16} className="text-brand" /> : null}
+              {profile.user.official ? <Badge tone="public" icon="sparkle">Official</Badge> : null}
               <Badge tone={profile.profilePrivacy === "private" ? "private" : "public"} icon={profile.profilePrivacy === "private" ? "lock" : "globe"}>
                 {profile.profilePrivacy === "private" ? "Private" : "Public"}
               </Badge>
