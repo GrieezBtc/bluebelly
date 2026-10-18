@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { db } from "@/db";
 import { mediaAssets } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { del as blobDel, get as blobGet, head as blobHead } from "@vercel/blob";
 import { badRequest } from "@/lib/api";
 
@@ -126,6 +126,16 @@ export async function registerBlobUpload(input: {
     })
     .returning();
   return asset;
+}
+
+/** If `url` is one of our /api/media links, return the asset id only when `ownerId` uploaded it. */
+export async function ownedMediaId(ownerId: number, url: string | null | undefined) {
+  const match = /^\/api\/media\?id=(\d+)$/.exec(url ?? "");
+  if (!match) return null;
+  const id = Number(match[1]);
+  const rows = await db.select({ id: mediaAssets.id }).from(mediaAssets).where(and(eq(mediaAssets.id, id), eq(mediaAssets.ownerId, ownerId), isNull(mediaAssets.deletedAt))).limit(1);
+  if (!rows[0]) throw badRequest("That file is not available. Please upload it again.");
+  return id;
 }
 
 export type MediaBody = Uint8Array | ReadableStream<Uint8Array>;

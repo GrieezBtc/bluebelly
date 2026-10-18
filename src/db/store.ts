@@ -48,7 +48,7 @@ import {
   messagePermissionBlockCopy,
   type Relation,
 } from "@/lib/privacy";
-import { deleteAsset } from "@/lib/storage";
+import { deleteAsset, ownedMediaId } from "@/lib/storage";
 import { timeLeftLabel } from "@/lib/utils";
 import { sendPushToUser } from "@/lib/push";
 import { generateShareCode, isValidShareCode } from "@/lib/share";
@@ -509,10 +509,12 @@ export async function createMomentRecord(input: {
   mediaHeight?: number | null;
   audience: MomentAudience;
 }) {
+  const mediaId = await ownedMediaId(input.authorId, input.mediaUrl);
   const values = {
     authorId: input.authorId,
     kind: input.kind,
     body: input.body,
+    mediaId,
     mediaUrl: input.mediaUrl ?? null,
     posterUrl: input.posterUrl ?? null,
     mediaWidth: input.mediaWidth ?? null,
@@ -1241,6 +1243,7 @@ export async function sendMessage(
     throw new Error("group_muted");
   }
 
+  const mediaId = await ownedMediaId(viewer.id, input.mediaUrl);
   const now = new Date();
   const expiresAt = conversation.kind === "group" ? new Date(now.getTime() + MESSAGE_EXPIRY.groupTtlMs) : null;
   const [created] = await db
@@ -1250,6 +1253,7 @@ export async function sendMessage(
       senderId: viewer.id,
       kind: input.kind,
       body: input.body ?? "",
+      mediaId,
       mediaUrl: input.mediaUrl ?? null,
       durationSec: input.durationSec ?? null,
       isSystem: false,

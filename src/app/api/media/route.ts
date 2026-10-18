@@ -1,6 +1,6 @@
-import { and, eq, isNull, notInArray } from "drizzle-orm";
+import { and, eq, isNull, notInArray, or } from "drizzle-orm";
 import { db } from "@/db";
-import { conversationMembers, messages, mediaAssets, moments, users } from "@/db/schema";
+import { conversationMembers, conversations, messages, mediaAssets, moments, users } from "@/db/schema";
 import { fail, notFound } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { getRelation } from "@/db/store";
@@ -22,6 +22,7 @@ export async function GET(request: Request) {
     const id = Number(url.searchParams.get("id"));
     if (!Number.isInteger(id) || id <= 0) throw notFound("Media not found.");
 
+    const mediaLink = `/api/media?id=${id}`;
     const viewer = await getCurrentUser(request);
     const [asset] = await db
       .select()
@@ -46,7 +47,14 @@ export async function GET(request: Request) {
         })
         .from(moments)
         .innerJoin(users, eq(users.id, moments.authorId))
-        .where(eq(moments.mediaId, id));
+        // Match by asset id, or by the stored link — but only when the uploader is the author,
+        // so nobody can expose someone else's file by pasting its link.
+        .where(
+          or(
+            eq(moments.mediaId, id),
+            asset.ownerId != null ? and(eq(moments.mediaUrl, mediaLink), eq(moments.authorId, asset.ownerId)) : undefined,
+          ),
+        );
 
       if (viewer && momentRows.length) {
         for (const moment of momentRows) {
@@ -75,6 +83,35 @@ export async function GET(request: Request) {
       }
     }
 
+    if (!authorized && asset.ownerId != null) {
+      // Profile photos are visible wherever the profile shows (feed, chats, share pages), and only
+      // when the account itself chose this file.
+      const [owner] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, asset.ownerId), eq(users.avatarUrl, mediaLink)))
+        .limit(1);
+      if (owner) authorized = true;
+    }
+
+    if (!authorized && viewer && asset.ownerId != null) {
+      // Group photos: visible to members of that group.
+      const groups = await db
+        .select({ id: conversations.id })
+        .from(conversations)
+        .innerJoin(conversationMembers, eq(conversationMembers.conversationId, conversations.id))
+        .where(
+          and(
+            eq(conversations.imageUrl, mediaLink),
+            eq(conversations.createdById, asset.ownerId),
+            eq(conversationMembers.userId, viewer.id),
+            notInArray(conversationMembers.state, ["declined", "left"]),
+          ),
+        )
+        .limit(1);
+      if (groups[0]) authorized = true;
+    }
+
     if (!authorized && viewer) {
       // Message media is available only to members of the conversation and
       // only while the message itself is still active.
@@ -88,7 +125,15 @@ export async function GET(request: Request) {
           isSystem: messages.isSystem,
         })
         .from(messages)
-        .where(and(eq(messages.mediaId, id), eq(messages.isSystem, false)));
+        .where(
+          and(
+            eq(messages.isSystem, false),
+            or(
+              eq(messages.mediaId, id),
+              asset.ownerId != null ? and(eq(messages.mediaUrl, mediaLink), eq(messages.senderId, asset.ownerId)) : undefined,
+            ),
+          ),
+        );
 
       for (const message of messageRows) {
         if (message.expiredAt) continue;

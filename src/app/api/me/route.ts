@@ -2,6 +2,7 @@ import { and, eq, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import { blocks, conversationMembers, conversations, follows, mediaAssets, moments, mutes, sessions, users } from "@/db/schema";
 import { fail, ok, readJson, requireString, toInt } from "@/lib/api";
+import { ownedMediaId } from "@/lib/storage";
 import { requireVerifiedUser, setSessionCookie, createSession, hashToken, readToken } from "@/lib/auth";
 import {
   normalizePrefs,
@@ -54,7 +55,11 @@ export async function PATCH(request: Request) {
     if (body.name !== undefined) updates.name = requireString(body.name, "Name", { min: 2, max: 60 });
     if (body.bio !== undefined) updates.bio = typeof body.bio === "string" ? body.bio.trim().slice(0, 200) : "";
     if (body.phone !== undefined) updates.phone = body.phone ? String(body.phone).slice(0, 40) : null;
-    if (body.avatarUrl !== undefined) updates.avatarUrl = body.avatarUrl ? String(body.avatarUrl).slice(0, 600) : null;
+    if (body.avatarUrl !== undefined) {
+      const avatar = body.avatarUrl ? String(body.avatarUrl).slice(0, 600) : null;
+      await ownedMediaId(user.id, avatar); // refuses links to files someone else uploaded
+      updates.avatarUrl = avatar;
+    }
     if (body.accent !== undefined && ACCENTS.includes(body.accent as Accent)) updates.accent = body.accent;
     if (body.username !== undefined) {
       const check = validateUsername(requireString(body.username, "Username", { max: 24 }));
