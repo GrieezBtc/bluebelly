@@ -1141,6 +1141,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       role: conversationMembers.role,
       state: conversationMembers.state,
       lastReadAt: conversationMembers.lastReadAt,
+      lastActiveAt: users.lastActiveAt,
     })
     .from(conversationMembers)
     .innerJoin(users, eq(users.id, conversationMembers.userId))
@@ -1250,7 +1251,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       kind: conversation.kind,
       title: conversation.kind === "group" ? conversation.title ?? "Group" : others[0]?.name ?? "Conversation",
       imageUrl: conversation.kind === "group" ? conversation.imageUrl : others[0]?.avatarUrl ?? null,
-      members: memberRows.filter((m) => m.state === "active" || m.state === "requested").map((m) => ({ ...toPublicUser(m), role: m.role, state: m.state })),
+      members: memberRows.filter((m) => m.state === "active" || m.state === "requested").map((m) => ({ ...toPublicUser(m), role: m.role, state: m.state, lastActiveAt: m.lastActiveAt.toISOString() })),
       state: membership.state,
       createdAt: conversation.createdAt.toISOString(),
       expiryLabel: conversationExpiryLabel(conversation.kind, conversation.disappearAfterSec),

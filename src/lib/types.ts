@@ -151,7 +151,11 @@ export type ConversationDetail = {
     kind: ConversationKind;
     title: string;
     imageUrl: string | null;
-    members: (PublicUser & { role: "member" | "admin"; state: MemberState })[];
+    members: (PublicUser & {
+      role: "member" | "admin";
+      state: MemberState;
+      lastActiveAt: string;
+    })[];
     state: MemberState;
     createdAt: string;
     expiryLabel: string;
