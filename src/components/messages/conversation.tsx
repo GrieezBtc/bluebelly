@@ -16,12 +16,13 @@ import {
   Overlay,
   ReportDialog,
   Spinner,
+  Switch,
   useToast,
 } from "@/components/ui";
 import { api, useCopyToClipboard } from "@/lib/client";
 import { useSession } from "@/components/providers";
 import { cn, formatClock, timeLeftLabel } from "@/lib/utils";
-import { EXPIRY_COPY } from "@/lib/privacy";
+import { DISAPPEAR_LABELS, disappearChoiceFromSeconds, EXPIRY_COPY, type DisappearChoice } from "@/lib/privacy";
 import type { ConversationDetail, MessageView } from "@/lib/types";
 
 export function ConversationView({ conversationId }: { conversationId: number }) {
@@ -201,6 +202,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
       | "add-member"
       | "promote"
       | "remove-member"
+      | "set-disappearing"
       | "mute-members"
       | "unmute-members"
       | "invite",
@@ -474,9 +476,56 @@ export function ConversationView({ conversationId }: { conversationId: number })
               </p>
             </div>
           </div>
-          <InfoBanner tone="info" icon="clock" title="Expiration">
+          <InfoBanner tone="info" icon="clock" title="Disappearing messages">
             <p>{conversation.expiryExplanation}</p>
           </InfoBanner>
+          {(() => {
+            const choice = disappearChoiceFromSeconds(conversation.disappearAfterSec);
+            const isOn = choice !== "off";
+            const canChange = conversation.canChangeDisappearing;
+            const durations: DisappearChoice[] = conversation.kind === "group" ? ["24h", "7d", "30d"] : ["instant", "24h", "7d", "30d"];
+            const defaultOn: DisappearChoice = conversation.kind === "group" ? "7d" : "24h";
+            return (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold">Disappearing messages</p>
+                    <p className="caption">
+                      {canChange
+                        ? "Applies to new messages. Messages already sent keep their timer."
+                        : conversation.kind === "group"
+                          ? "Only group admins can change this."
+                          : "You cannot change this right now."}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={isOn}
+                    disabled={!canChange}
+                    label="Disappearing messages"
+                    onChange={(next) => void conversationAction("set-disappearing", next ? defaultOn : "off")}
+                  />
+                </div>
+                {isOn ? (
+                  <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Disappear after">
+                    {durations.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        role="radio"
+                        aria-checked={choice === option}
+                        className="chip"
+                        data-active={choice === option}
+                        disabled={!canChange}
+                        onClick={() => void conversationAction("set-disappearing", option)}
+                      >
+                        {DISAPPEAR_LABELS[option]}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })()}
           {conversation.kind === "group" ? (
             <div>
               <p className="eyebrow pb-1">Members</p>
@@ -686,9 +735,9 @@ export function ConversationView({ conversationId }: { conversationId: number })
               This message disappears {messageMenu.expiresLabel ?? "soon"}. Expiring messages cannot stop screenshots or screen
               recording — please share thoughtfully.
             </p>
-          ) : (
+          ) : messageMenu?.disappears ? (
             <p className="caption px-3 py-2">{EXPIRY_COPY.maxRetention}</p>
-          )}
+          ) : null}
         </div>
       </Overlay>
 
@@ -856,10 +905,12 @@ function MessageBubble({
             <Icon name="more" size={13} />
           </button>
         </div>
-        <span className={cn("expiry-note", message.isMine && "expiry-note-mine", expiredSoon && "text-coral")}>
-          <Icon name="clock" size={11} />
-          {message.notViewedYet ? EXPIRY_COPY.directNotViewed : countdown ?? EXPIRY_COPY.group}
-        </span>
+        {message.disappears ? (
+          <span className={cn("expiry-note", message.isMine && "expiry-note-mine", expiredSoon && "text-coral")}>
+            <Icon name="clock" size={11} />
+            {message.notViewedYet ? EXPIRY_COPY.directNotViewed : countdown ?? EXPIRY_COPY.group}
+          </span>
+        ) : null}
       </div>
     </li>
   );

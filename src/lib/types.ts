@@ -139,6 +139,8 @@ export type MessageView = {
   /** Permissions for the viewer, decided by the server. */
   canEdit: boolean;
   canDelete: boolean;
+  /** False when this message was sent with disappearing messages off. */
+  disappears: boolean;
   /** The message this one replies to, if any. */
   replyTo: { id: number; senderName: string; preview: string; deleted: boolean } | null;
 };
@@ -154,6 +156,9 @@ export type ConversationDetail = {
     createdAt: string;
     expiryLabel: string;
     expiryExplanation: string;
+    /** null = off, 0 = instant (right after viewing), else seconds. */
+    disappearAfterSec: number | null;
+    canChangeDisappearing: boolean;
     messagePermissionBlocked: boolean;
     membersMuted: boolean;
   };

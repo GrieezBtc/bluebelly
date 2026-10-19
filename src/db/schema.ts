@@ -214,6 +214,8 @@ export const conversations = pgTable(
     directKey: text("direct_key"),
     membersMuted: boolean("members_muted").default(false).notNull(),
     inviteToken: text("invite_token"),
+    // Disappearing messages: null = off, 0 = right after viewing (1:1 only), otherwise seconds.
+    disappearAfterSec: integer("disappear_after_sec"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -261,6 +263,8 @@ export const messages = pgTable(
     deletedById: integer("deleted_by_id"),
     // The message this one replies to (same conversation).
     replyToId: integer("reply_to_id"),
+    // The disappearing setting this message was sent under (same encoding as the conversation). Null = never expires.
+    ttlSec: integer("ttl_sec"),
   },
   (t) => [
     index("messages_conversation_idx").on(t.conversationId),

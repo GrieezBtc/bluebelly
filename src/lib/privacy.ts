@@ -9,6 +9,63 @@ export const MESSAGE_EXPIRY = {
   maxUnviewedRetentionMs: 30 * 24 * 60 * 60 * 1000,
 };
 
+/** How long an "instant" message stays after it has been viewed (so voice notes and photos can still be opened). */
+export const INSTANT_GRACE_SEC = 30;
+
+export type DisappearChoice = "off" | "instant" | "24h" | "7d" | "30d";
+
+export const DISAPPEAR_SECONDS: Record<Exclude<DisappearChoice, "off">, number> = {
+  instant: 0,
+  "24h": 24 * 60 * 60,
+  "7d": 7 * 24 * 60 * 60,
+  "30d": 30 * 24 * 60 * 60,
+};
+
+export const DISAPPEAR_LABELS: Record<DisappearChoice, string> = {
+  off: "Off",
+  instant: "Instant",
+  "24h": "24 hours",
+  "7d": "7 days",
+  "30d": "30 days",
+};
+
+export function disappearChoiceFromSeconds(sec: number | null): DisappearChoice {
+  if (sec === null) return "off";
+  if (sec === 0) return "instant";
+  if (sec <= DISAPPEAR_SECONDS["24h"]) return "24h";
+  if (sec <= DISAPPEAR_SECONDS["7d"]) return "7d";
+  return "30d";
+}
+
+/** Short label + longer explanation for a conversation's disappearing setting. */
+export function describeDisappearing(kind: "direct" | "group", sec: number | null) {
+  const choice = disappearChoiceFromSeconds(sec);
+  if (choice === "off") {
+    return {
+      label: "Disappearing messages off",
+      explanation: "Messages in this conversation do not disappear on their own. You can still delete your own messages.",
+    };
+  }
+  if (kind === "group") {
+    const d = DISAPPEAR_LABELS[choice];
+    return {
+      label: `Disappears ${d} after sending`,
+      explanation: `Every new message in this group is removed ${d} after it was sent, whether or not everyone has opened it.`,
+    };
+  }
+  if (choice === "instant") {
+    return {
+      label: "Disappears right after viewing",
+      explanation: "New messages disappear moments after the other person views them. Until then the countdown has not started.",
+    };
+  }
+  const d = DISAPPEAR_LABELS[choice];
+  return {
+    label: `Disappears ${d} after viewing`,
+    explanation: `New messages disappear ${d} after the other person views them. Until then the countdown has not started.`,
+  };
+}
+
 export const EXPIRY_COPY = {
   direct: "Disappears 24h after viewing",
   directNotViewed: "Countdown starts when they view it",

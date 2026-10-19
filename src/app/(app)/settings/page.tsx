@@ -610,12 +610,12 @@ function SettingsInner() {
             <h2 className="h3">Message expiry</h2>
             <div className="flex flex-col gap-2">
               <div className="card-flat p-3">
-                <p className="text-sm font-semibold">1-to-1 messages</p>
-                <p className="body-sm">Disappears 24 hours after the other person views it. Unviewed messages start their countdown later, and are removed after 30 days at the latest.</p>
+                <p className="text-sm font-semibold">1-to-1 chats</p>
+                <p className="body-sm">New chats start at 24 hours after the other person views a message. Either person can switch disappearing messages off, or choose Instant, 24 hours, 7 days or 30 days, from the chat info panel at any time.</p>
               </div>
               <div className="card-flat p-3">
-                <p className="text-sm font-semibold">Group messages</p>
-                <p className="body-sm">Disappears 7 days after sending, no matter who has read it.</p>
+                <p className="text-sm font-semibold">Group chats</p>
+                <p className="body-sm">New groups start at 7 days after sending. Group admins can turn disappearing messages off, or choose 24 hours, 7 days or 30 days, from the group info panel at any time.</p>
               </div>
             </div>
             <InfoBanner tone="warn" icon="alert" title="What expiry can and cannot do">

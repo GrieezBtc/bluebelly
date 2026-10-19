@@ -43,6 +43,9 @@ import type {
 import {
   EXPIRY_COPY,
   MESSAGE_EXPIRY,
+  DISAPPEAR_SECONDS,
+  INSTANT_GRACE_SEC,
+  describeDisappearing,
   canMessage,
   canViewMoment,
   effectiveAudience,
@@ -925,14 +928,12 @@ export async function sessionPayload(user: AuthUser): Promise<SessionUser> {
  * Messaging
  * ------------------------------------------------------------------ */
 
-export function conversationExpiryLabel(kind: "direct" | "group") {
-  return kind === "group" ? EXPIRY_COPY.group : EXPIRY_COPY.direct;
+export function conversationExpiryLabel(kind: "direct" | "group", sec: number | null) {
+  return describeDisappearing(kind, sec).label;
 }
 
-export function conversationExpiryExplanation(kind: "direct" | "group") {
-  return kind === "group"
-    ? "Every message in this group is automatically removed 7 days after it was sent, whether or not everyone has opened it."
-    : "Messages disappear 24 hours after the other person views them. Until then the countdown has not started.";
+export function conversationExpiryExplanation(kind: "direct" | "group", sec: number | null) {
+  return describeDisappearing(kind, sec).explanation;
 }
 
 export async function findDirectConversation(userA: number, userB: number) {
@@ -956,7 +957,7 @@ export async function ensureDirectConversation(viewer: AuthUser, targetUsername:
   const directKey = [viewer.id, target.id].sort((a, b) => a - b).join(":");
   const [conversation] = await db
     .insert(conversations)
-    .values({ kind: "direct", createdById: viewer.id, directKey })
+    .values({ kind: "direct", createdById: viewer.id, directKey, disappearAfterSec: DISAPPEAR_SECONDS["24h"] })
     .returning();
   await db.insert(conversationMembers).values([
     { conversationId: conversation.id, userId: viewer.id, state: "active", role: "member" },
@@ -985,7 +986,7 @@ export async function createGroupConversation(creator: AuthUser, memberUsernames
   if (rows.length === 0) return null;
   const [conversation] = await db
     .insert(conversations)
-    .values({ kind: "group", createdById: creator.id, title, imageUrl })
+    .values({ kind: "group", createdById: creator.id, title, imageUrl, disappearAfterSec: DISAPPEAR_SECONDS["7d"] })
     .returning();
   await db.insert(conversationMembers).values([
     { conversationId: conversation.id, userId: creator.id, role: "admin", state: "active" },
@@ -1023,6 +1024,7 @@ export async function listConversations(
       title: conversations.title,
       imageUrl: conversations.imageUrl,
       lastMessageAt: conversations.lastMessageAt,
+      disappearAfterSec: conversations.disappearAfterSec,
     })
     .from(conversationMembers)
     .innerJoin(conversations, eq(conversations.id, conversationMembers.conversationId))
@@ -1109,7 +1111,7 @@ export async function listConversations(
       lastMessagePreview: preview,
       lastMessageAt: (last?.createdAt ?? m.lastMessageAt).toISOString(),
       unreadCount: unreadMap.get(m.conversationId) ?? 0,
-      expiryLabel: conversationExpiryLabel(m.kind),
+      expiryLabel: conversationExpiryLabel(m.kind, m.disappearAfterSec),
       lastMessageFromMe: last?.senderId === viewer.id,
     } satisfies ConversationSummary;
   });
@@ -1161,6 +1163,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       deletedAt: messages.deletedAt,
       deletedById: messages.deletedById,
       replyToId: messages.replyToId,
+      ttlSec: messages.ttlSec,
     })
     .from(messages)
     .where(
@@ -1195,7 +1198,8 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
   };
   const messageViewsList: MessageView[] = messageRows.map((m) => {
     const isMine = m.senderId === viewer.id;
-    const notViewedYet = conversation.kind === "direct" && !m.isSystem && m.firstViewedAt === null;
+    const disappears = !m.isSystem && m.ttlSec !== null;
+    const notViewedYet = conversation.kind === "direct" && disappears && m.firstViewedAt === null;
     const label = m.isSystem
       ? null
       : notViewedYet
@@ -1234,10 +1238,12 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       deletedBy: deleted ? (m.deletedById === m.senderId ? "sender" : "admin") : null,
       canEdit: !deleted && !m.isSystem && isMine && m.kind === "text",
       canDelete: !deleted && !m.isSystem && (isMine || isAdminHere),
+      disappears,
       replyTo: deleted ? null : resolveReply(m.replyToId),
     } satisfies MessageView;
   });
 
+  const isAdminHere0 = conversation.kind === "group" && membership.role === "admin" && membership.state === "active";
   return {
     conversation: {
       id: conversation.id,
@@ -1247,8 +1253,10 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       members: memberRows.filter((m) => m.state === "active" || m.state === "requested").map((m) => ({ ...toPublicUser(m), role: m.role, state: m.state })),
       state: membership.state,
       createdAt: conversation.createdAt.toISOString(),
-      expiryLabel: conversationExpiryLabel(conversation.kind),
-      expiryExplanation: conversationExpiryExplanation(conversation.kind),
+      expiryLabel: conversationExpiryLabel(conversation.kind, conversation.disappearAfterSec),
+      expiryExplanation: conversationExpiryExplanation(conversation.kind, conversation.disappearAfterSec),
+      disappearAfterSec: conversation.disappearAfterSec,
+      canChangeDisappearing: conversation.kind === "group" ? isAdminHere0 : membership.state === "active",
       messagePermissionBlocked: false,
       membersMuted: conversation.kind === "group" ? conversation.membersMuted : false,
     },
@@ -1278,7 +1286,7 @@ export async function markConversationRead(viewer: AuthUser, conversationId: num
 
   const now = new Date();
   const unread = await db
-    .select({ id: messages.id, senderId: messages.senderId })
+    .select({ id: messages.id, senderId: messages.senderId, ttlSec: messages.ttlSec })
     .from(messages)
     .where(
       and(
@@ -1294,10 +1302,19 @@ export async function markConversationRead(viewer: AuthUser, conversationId: num
     await db.insert(messageViews).values(ids.map((id) => ({ messageId: id, userId: viewer.id }))).onConflictDoNothing();
     await db.update(messages).set({ firstViewedAt: now }).where(and(inArray(messages.id, ids), isNull(messages.firstViewedAt)));
     if (conversation.kind === "direct") {
-      await db
-        .update(messages)
-        .set({ expiresAt: new Date(now.getTime() + MESSAGE_EXPIRY.directViewedTtlMs) })
-        .where(inArray(messages.id, ids));
+      // Each message carries the timer it was sent under: start that countdown now.
+      const byTtl = new Map<number, number[]>();
+      for (const m of unread) {
+        if (m.ttlSec === null) continue; // sent with disappearing messages off
+        byTtl.set(m.ttlSec, [...(byTtl.get(m.ttlSec) ?? []), m.id]);
+      }
+      for (const [ttl, messageIds] of byTtl) {
+        const seconds = ttl === 0 ? INSTANT_GRACE_SEC : ttl;
+        await db
+          .update(messages)
+          .set({ expiresAt: new Date(now.getTime() + seconds * 1000) })
+          .where(inArray(messages.id, messageIds));
+      }
     }
     const senderIds = Array.from(new Set(unread.map((m) => m.senderId)));
     for (const senderId of senderIds) {
@@ -1349,7 +1366,9 @@ export async function sendMessage(
 
   const mediaId = await ownedMediaId(viewer.id, input.mediaUrl);
   const now = new Date();
-  const expiresAt = conversation.kind === "group" ? new Date(now.getTime() + MESSAGE_EXPIRY.groupTtlMs) : null;
+  // The message is stamped with the conversation's current setting (null = disappearing messages are off).
+  const ttlSec = conversation.disappearAfterSec;
+  const expiresAt = conversation.kind === "group" && ttlSec !== null ? new Date(now.getTime() + ttlSec * 1000) : null;
   const [created] = await db
     .insert(messages)
     .values({
@@ -1362,8 +1381,9 @@ export async function sendMessage(
       durationSec: input.durationSec ?? null,
       isSystem: false,
       replyToId: replyTarget?.id ?? null,
+      ttlSec,
       expiresAt,
-      maxRetentionAt: new Date(now.getTime() + MESSAGE_EXPIRY.maxUnviewedRetentionMs),
+      maxRetentionAt: ttlSec === null ? null : new Date(now.getTime() + MESSAGE_EXPIRY.maxUnviewedRetentionMs),
     })
     .returning();
   await db.update(conversations).set({ lastMessageAt: now }).where(eq(conversations.id, conversationId));
@@ -1407,7 +1427,8 @@ export async function sendMessage(
     expiresAt: created.expiresAt ? created.expiresAt.toISOString() : null,
     expiresLabel:
       conversation.kind === "group" ? timeLeftLabel(created.expiresAt?.toISOString() ?? null) : EXPIRY_COPY.directNotViewed,
-    notViewedYet: conversation.kind === "direct",
+    notViewedYet: conversation.kind === "direct" && ttlSec !== null,
+    disappears: ttlSec !== null,
     expired: false,
     editedAt: null,
     deleted: false,
@@ -1519,7 +1540,7 @@ export async function joinGroupByInvite(viewer: AuthUser, token: string) {
 export async function respondToConversation(
   viewer: AuthUser,
   conversationId: number,
-  action: "accept" | "decline" | "leave" | "mute" | "unmute" | "rename" | "add-member" | "promote" | "remove-member" | "mute-members" | "unmute-members" | "invite",
+  action: "accept" | "decline" | "leave" | "mute" | "unmute" | "rename" | "add-member" | "promote" | "remove-member" | "set-disappearing" | "mute-members" | "unmute-members" | "invite",
   value?: string,
 ) {
   const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
@@ -1616,6 +1637,38 @@ export async function respondToConversation(
         preview: `Added you to ${conversation.title ?? "a group"}`,
       });
       return { ok: true as const, message: `${target.name} was added to the group.` };
+    }
+    case "set-disappearing": {
+      const options = ["off", "instant", "24h", "7d", "30d"] as const;
+      const choice = options.find((option) => option === value);
+      if (!choice) return { ok: false as const };
+      const actor = viewer;
+      if (conversation.kind === "group") {
+        // Only admins control a group's timer, and "instant" only makes sense for 1:1 chats.
+        await requireGroupAdmin(viewer, conversationId);
+        if (choice === "instant") throw new Error("invalid_choice");
+      } else {
+        const membership = await requireActiveConversationMember(viewer, conversationId);
+        if (membership.state !== "active") throw new Error("forbidden");
+      }
+      const seconds = choice === "off" ? null : DISAPPEAR_SECONDS[choice];
+      await db.update(conversations).set({ disappearAfterSec: seconds }).where(eq(conversations.id, conversationId));
+      const described = describeDisappearing(conversation.kind, seconds);
+      await db.insert(messages).values({
+        conversationId,
+        senderId: actor.id,
+        kind: "system",
+        isSystem: true,
+        body:
+          seconds === null
+            ? `${actor.name} turned off disappearing messages.`
+            : `${actor.name} turned on disappearing messages. ${described.label}.`,
+      });
+      await db.update(conversations).set({ lastMessageAt: new Date() }).where(eq(conversations.id, conversationId));
+      return {
+        ok: true as const,
+        message: seconds === null ? "Disappearing messages are off. New messages will stay." : `${described.label}. This applies to new messages.`,
+      };
     }
     case "remove-member": {
       // Only admins can remove people. Regular members can only leave on their own.
