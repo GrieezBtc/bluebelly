@@ -339,18 +339,13 @@ export function ConversationView({ conversationId }: { conversationId: number })
           </div>
         ) : (
           <div className="py-3">
-            <InfoBanner tone="info" icon="clock">
+            <InfoBanner tone="info" icon="lock">
               <p>
-                <strong>{conversation.expiryExplanation}</strong>
+                <strong>Private chat.</strong> Only people in this chat can see its messages, photos and voice notes.
               </p>
-              <p className="pt-1">{EXPIRY_COPY.honestNote}</p>
             </InfoBanner>
           </div>
         )}
-
-        <p className="caption py-3 text-center">
-          Messages follow this chat's disappearing-messages setting. Open the chat info to see or change it.
-        </p>
 
         {messages.length === 0 ? (
           <EmptyState
