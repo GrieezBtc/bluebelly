@@ -413,7 +413,7 @@ function SettingsInner() {
           <section className="card card-pad flex flex-col gap-3" style={{ borderColor: "var(--coral)" }}>
             <h2 className="h3 text-coral">Danger zone</h2>
             <p className="body-sm">
-              Deleting your account removes your profile, Moments, conversations and temporary media. This cannot be undone.
+              Deleting your account removes your profile, Moments, conversations and message attachments. This cannot be undone.
             </p>
             <button type="button" className="btn btn-danger" onClick={() => setDeleteOpen(true)}>
               <Icon name="trash" size={16} /> Delete account
@@ -723,14 +723,14 @@ function SettingsInner() {
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         title="Delete your Bemblo account?"
-        description="Your profile, Moments, conversations and temporary media will be permanently removed."
+        description="Your profile, Moments, conversations and message attachments will be permanently removed."
         confirmLabel="Delete my account"
         tone="danger"
         confirmPhrase={user.username}
         details={
           <ul className="body-sm list-disc space-y-1 pl-4">
             <li>Moments, messages and conversation history are deleted.</li>
-            <li>Temporary media in storage is cleaned up.</li>
+            <li>Photos, videos and voice notes from your messages are deleted from storage.</li>
             <li>Followers and following relationships are removed.</li>
             <li>You can create a new account later, but this data cannot be recovered.</li>
           </ul>

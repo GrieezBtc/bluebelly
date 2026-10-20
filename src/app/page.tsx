@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 const PILLARS = [
   {
     icon: "chat" as const,
-    title: "Temporary conversations",
-    body: "1-to-1 messages disappear 24 hours after they are viewed. Group messages clear after 7 days. Your chats stay light on purpose.",
+    title: "Private conversations, your rules",
+    body: "Chat 1-to-1 or in groups with replies, voice notes and photos. You choose how long messages stay: right after viewing, 24 hours, 7 days or 30 days, or keep them. Group admins set the timer for their group.",
   },
   {
     icon: "moments" as const,
@@ -25,7 +25,34 @@ const PILLARS = [
   {
     icon: "help" as const,
     title: "Support that answers",
-    body: "Real people reply, usually in under four hours. Safety reports are reviewed within a day.",
+    body: "Real people reply, usually in under four hours. Safety reports are reviewed within a day, and you can follow the official Bemblo account for updates.",
+  },
+];
+
+const STEPS = [
+  {
+    title: "Create and verify your account",
+    body: "Sign up with your email, confirm it, and pick a username. Choose whether your profile is Public or Private.",
+  },
+  {
+    title: "Share Moments with the right audience",
+    body: "Post a photo, video or thought and pick Public, Followers or Only Me. Moments stay until you delete them. Friends can like, comment and reply.",
+  },
+  {
+    title: "Message on your terms",
+    body: "You decide who can message you. People you do not follow back arrive as message requests. Reply to, edit or delete your messages, and leave or manage groups as an admin.",
+  },
+  {
+    title: "Control how long messages stay",
+    body: "Every chat has its own disappearing-messages setting that you can switch on, off or change at any time. Group admins control the timer for their group.",
+  },
+  {
+    title: "Stay in the loop",
+    body: "Get notifications for messages, replies and activity, and follow the official Bemblo account for announcements and upcoming updates.",
+  },
+  {
+    title: "Get help when you need it",
+    body: "Report anything that breaks the Community Guidelines, or contact Support from your profile menu. A real person will reply.",
   },
 ];
 
@@ -61,8 +88,8 @@ export default async function LandingPage() {
                 </span>
               </h1>
               <p className="body-sm pt-4 max-w-lg text-base" style={{ color: "var(--ink-2)" }}>
-                One clean place for conversations that expire and Moments that last. Message a friend, share a photo, pick exactly
-                who sees it — then get on with your day.
+                One clean place for private conversations and lasting Moments. Message a friend, share a photo, choose exactly who
+                sees it, and decide how long your messages stay.
               </p>
               <div className="flex flex-col gap-3 pt-6 sm:flex-row">
                 <Link href="/signup" className="btn btn-primary btn-lg">
@@ -99,6 +126,25 @@ export default async function LandingPage() {
             ))}
           </section>
 
+          <section className="py-6" aria-labelledby="how-it-works">
+            <h2 className="h2" id="how-it-works">
+              How Bemblo works
+            </h2>
+            <ol className="grid gap-3 pt-4 sm:grid-cols-2">
+              {STEPS.map((step, index) => (
+                <li key={step.title} className="card card-pad flex gap-3">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold">{step.title}</h3>
+                    <p className="body-sm pt-1">{step.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+
           <section className="card card-pad my-6">
             <h2 className="h2">Who sees what — in plain language</h2>
             <div className="grid gap-4 pt-4 sm:grid-cols-3">
@@ -116,8 +162,8 @@ export default async function LandingPage() {
               ))}
             </div>
             <p className="caption pt-4">
-              Expiring messages remove content from Bemblo, but they cannot prevent screenshots, screen recording or someone
-              photographing their screen. We will never claim otherwise.
+              Disappearing messages remove content from Bemblo on the schedule you choose. They cannot prevent screenshots, screen
+              recording or someone photographing a screen, and we will never claim otherwise.
             </p>
           </section>
         </main>

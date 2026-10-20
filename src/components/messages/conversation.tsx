@@ -25,24 +25,6 @@ import { cn, formatClock, timeLeftLabel } from "@/lib/utils";
 import { DISAPPEAR_LABELS, disappearChoiceFromSeconds, EXPIRY_COPY, type DisappearChoice } from "@/lib/privacy";
 import type { ConversationDetail, MessageView } from "@/lib/types";
 
-function presenceLabel(lastActiveAt: string, now: number): string {
-  const timestamp = Date.parse(lastActiveAt);
-  if (!Number.isFinite(timestamp)) return "Status unavailable";
-
-  const elapsed = Math.max(0, now - timestamp);
-
-  if (elapsed < 2 * 60_000) return "Online";
-
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 60) return `Active ${minutes} min ago`;
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Active ${hours} hr ago`;
-
-  const days = Math.floor(hours / 24);
-  return `Active ${days} ${days === 1 ? "day" : "days"} ago`;
-}
-
 export function ConversationView({ conversationId }: { conversationId: number }) {
   const router = useRouter();
   const { user } = useSession();
@@ -320,14 +302,6 @@ export function ConversationView({ conversationId }: { conversationId: number })
           <span className="min-w-0">
             <span className="flex items-center gap-1.5">
               <span className="truncate font-semibold">{conversation.title}</span>
-              {conversation.kind === "direct" && otherMember ? (
-                <span
-                  className="shrink-0 text-xs font-normal opacity-70"
-                  aria-label="Account activity"
-                >
-                  {presenceLabel(otherMember.lastActiveAt, now)}
-                </span>
-              ) : null}
               {conversation.kind === "group" ? <Badge tone="public">Group</Badge> : null}
             </span>
             <span className="caption block truncate">
@@ -375,7 +349,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
         )}
 
         <p className="caption py-3 text-center">
-          Messages older than the expiry window are removed from this thread automatically — nothing is left behind.
+          Messages follow this chat's disappearing-messages setting. Open the chat info to see or change it.
         </p>
 
         {messages.length === 0 ? (

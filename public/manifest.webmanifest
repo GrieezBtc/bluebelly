@@ -2,7 +2,7 @@
   "id": "/?source=pwa",
   "name": "Bemblo — Talk. Share. Connect.",
   "short_name": "Bemblo",
-  "description": "Temporary conversations with lasting Moments. Bemblo combines fast messaging with a social feed you control.",
+  "description": "Private conversations and lasting Moments. Bemblo combines fast messaging, with disappearing messages you control, and a social feed you choose who sees.",
   "start_url": "/home?source=pwa",
   "scope": "/",
   "display": "standalone",

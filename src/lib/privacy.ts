@@ -67,13 +67,13 @@ export function describeDisappearing(kind: "direct" | "group", sec: number | nul
 }
 
 export const EXPIRY_COPY = {
-  direct: "Disappears 24h after viewing",
+  direct: "Disappears after viewing",
   directNotViewed: "Countdown starts when they view it",
-  directViewed: "Viewed · disappears 24h after viewing",
-  group: "Disappears 7 days after sending",
+  directViewed: "Viewed · disappearing",
+  group: "Disappears after sending",
   maxRetention: "Unviewed messages are removed after 30 days",
   honestNote:
-    "Messages disappear from Bemblo automatically. Expiring messages cannot stop screenshots or screen recording on other people's devices.",
+    "When disappearing messages are on, Bemblo removes messages on the schedule chosen for the chat. This cannot prevent screenshots or screen recording on other people's devices.",
 };
 
 export const AUDIENCE_COPY: Record<MomentAudience, { label: string; short: string; description: string; icon: string }> = {

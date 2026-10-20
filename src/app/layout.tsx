@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     template: "%s · Bemblo",
   },
   description:
-    "Bemblo combines temporary conversations with lasting Moments. Talk, share and connect in one clean, private social app.",
+    "Bemblo brings private conversations and lasting Moments together. Talk, share and connect in one clean social app where you control who sees what and how long messages stay.",
   applicationName: "Bemblo",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false },
   openGraph: {
     title: "Bemblo — Talk. Share. Connect.",
-    description: "Temporary conversations. Lasting Moments. One clean social app.",
+    description: "Private conversations. Lasting Moments. You are in control.",
     type: "website",
   },
 };

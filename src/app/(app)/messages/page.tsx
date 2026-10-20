@@ -90,7 +90,7 @@ function MessagesInner() {
     <div className="page px-4">
       <PageHeader
         title="Messages"
-        subtitle="Temporary by design"
+        subtitle="Private conversations"
         actions={
           <button type="button" className="btn btn-primary btn-sm" onClick={() => setNewOpen(true)}>
             <Icon name="create" size={16} /> New
@@ -140,7 +140,7 @@ function MessagesInner() {
             <EmptyState
               icon="chat"
               title="No conversations yet"
-              description="Start a 1-to-1 chat or create a group. 1-to-1 messages disappear 24h after they are viewed; group messages after 7 days."
+              description="Start a 1-to-1 chat or create a group. You choose how long messages stay, or turn disappearing messages off, from each chat's info panel."
               action={
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => setNewOpen(true)}>
                   Start a conversation
@@ -279,7 +279,7 @@ function MessagesInner() {
                 );
               })}
             </div>
-            <p className="caption">Group messages disappear 7 days after sending, for everyone in the group.</p>
+            <p className="caption">New groups start with messages disappearing after 7 days. Admins can change this or turn it off in the group info.</p>
             <button
               type="button"
               className="btn btn-primary"

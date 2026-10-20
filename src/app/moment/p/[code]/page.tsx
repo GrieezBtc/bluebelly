@@ -123,7 +123,7 @@ export default async function SharedMomentPage({ params }: Props) {
 
           <section className="card card-pad text-center">
             <h2 className="h3">{moment ? `Join ${moment.author.name.split(" ")[0]} on Bemblo` : "Join Bemblo"}</h2>
-            <p className="body-sm pt-1">Like, comment and follow. Temporary chats, lasting Moments, privacy you control.</p>
+            <p className="body-sm pt-1">Like, comment and follow. Private chats, lasting Moments, privacy you control.</p>
             <div className="flex flex-col gap-2 pt-4">
               <Link href="/signup" className="btn btn-primary btn-block">
                 Create account
