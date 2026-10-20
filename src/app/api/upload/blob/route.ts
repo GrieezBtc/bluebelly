@@ -22,7 +22,6 @@ export async function POST(request: Request) {
         const user = await requireVerifiedUser(request);
         if (!pathname.startsWith(BLOB_PATH_PREFIX) || pathname.includes("..")) throw badRequest("Invalid upload path.");
         return {
-          allowedContentTypes: ["image/*", "video/*", "audio/*"],
           maximumSizeInBytes: MAX_UPLOAD_BYTES,
           addRandomSuffix: true,
           tokenPayload: JSON.stringify({ userId: user.id }),

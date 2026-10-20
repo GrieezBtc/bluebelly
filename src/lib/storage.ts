@@ -8,12 +8,29 @@ import { badRequest } from "@/lib/api";
 
 export const UPLOAD_DIR = process.env.BEMBLO_UPLOAD_DIR ?? path.join(process.cwd(), ".data", "uploads");
 
-export type MediaKind = "image" | "video" | "audio";
+export type MediaKind = "image" | "video" | "audio" | "document";
 
 export function kindFromMime(mime: string): MediaKind {
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  return "audio";
+  const type = mime.toLowerCase().split(";")[0].trim();
+
+  const images = new Set([
+    "image/jpeg", "image/png", "image/webp", "image/gif",
+    "image/avif", "image/heic", "image/heif",
+  ]);
+  const videos = new Set([
+    "video/mp4", "video/webm", "video/quicktime",
+    "video/3gpp", "video/3gpp2", "video/x-m4v",
+  ]);
+  const audio = new Set([
+    "audio/webm", "audio/mpeg", "audio/ogg", "audio/mp4",
+    "audio/wav", "audio/x-wav", "audio/aac",
+    "audio/3gpp", "audio/3gpp2", "audio/flac",
+  ]);
+
+  if (images.has(type)) return "image";
+  if (videos.has(type)) return "video";
+  if (audio.has(type)) return "audio";
+  return "document";
 }
 
 export function extFromMime(mime: string) {
@@ -91,6 +108,7 @@ export async function registerBlobUpload(input: {
   width?: number | null;
   height?: number | null;
   durationSec?: number | null;
+  allowDocuments?: boolean;
 }) {
   const { pathname } = input;
   if (!pathname.startsWith(BLOB_PATH_PREFIX) || pathname.includes("..")) throw badRequest("Invalid upload.");
@@ -106,9 +124,10 @@ export async function registerBlobUpload(input: {
     throw badRequest("Upload not found. Please try again.");
   }
   const mimeType = (meta.contentType || "").toLowerCase();
-  if (meta.size > MAX_UPLOAD_BYTES || !/^(image|video|audio)\//.test(mimeType)) {
+  const mediaKind = kindFromMime(mimeType);
+  if (meta.size > MAX_UPLOAD_BYTES || (mediaKind === "document" && !input.allowDocuments)) {
     await blobDel(pathname).catch(() => undefined);
-    throw badRequest("Only photos, videos and voice notes up to 25 MB can be uploaded.");
+    throw badRequest("This file type is only supported in messages, and uploads are limited to 25 MB.");
   }
 
   const [asset] = await db

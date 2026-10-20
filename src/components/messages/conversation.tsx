@@ -41,6 +41,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [recorderSupported, setRecorderSupported] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -55,6 +56,9 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [replyingTo, setReplyingTo] = useState<MessageView | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const photosInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -133,7 +137,11 @@ export function ConversationView({ conversationId }: { conversationId: number })
       form.append("file", file);
       form.append("scope", "message");
       const uploaded = await api.upload<{ url: string; kind: string }>("/api/upload", form);
-      await send(uploaded.kind === "video" ? "video" : "image", "", uploaded.url);
+      const kind =
+        uploaded.kind === "document" ? "document" :
+        uploaded.kind === "video" ? "video" :
+        uploaded.kind === "audio" ? "voice" : "image";
+      await send(kind, kind === "document" ? file.name : "", uploaded.url);
     } catch (err) {
       show({
         title: "Upload failed",
@@ -399,7 +407,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
           <Icon name="reply" size={16} />
           <div className="min-w-0 flex-1 border-l-2 border-[color:var(--line)] pl-2">
             <p className="truncate text-xs font-semibold">Replying to {replyingTo.isMine ? "yourself" : (replyingTo.sender?.name ?? "message")}</p>
-            <p className="caption truncate">{replyingTo.kind === "text" ? replyingTo.body : replyingTo.kind === "voice" ? "Voice message" : replyingTo.kind === "image" ? "Photo" : "Video"}</p>
+            <p className="caption truncate">{replyingTo.kind === "text" ? replyingTo.body : replyingTo.kind === "voice" ? "Voice message" : replyingTo.kind === "image" ? "Photo" : replyingTo.kind === "document" ? (replyingTo.body || "File") : "Video"}</p>
           </div>
           <button type="button" className="btn-icon" aria-label="Cancel reply" onClick={() => setReplyingTo(null)}>
             <Icon name="x" size={16} />
@@ -414,22 +422,93 @@ export function ConversationView({ conversationId }: { conversationId: number })
           if (draft.trim()) void send("text", draft.trim());
         }}
       >
-        <label
-          className={cn("btn-icon", groupSendBlocked && "pointer-events-none opacity-50")}
-          aria-label="Attach a photo or video"
-        >
-          {uploading ? <Spinner /> : <Icon name="image" size={22} />}
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            className={cn("btn-icon", groupSendBlocked && "pointer-events-none opacity-50")}
+            aria-label="Attachment options"
+            aria-expanded={attachmentMenuOpen}
+            disabled={groupSendBlocked || uploading}
+            onClick={() => setAttachmentMenuOpen((open) => !open)}
+          >
+            {uploading ? <Spinner /> : <Icon name="plus" size={22} />}
+          </button>
+
+          {attachmentMenuOpen ? (
+            <div className="absolute bottom-full left-0 z-30 mb-2 flex min-w-40 flex-col rounded-md border border-line bg-surface p-1 shadow-lg">
+              <button
+                type="button"
+                className="list-row rounded-md"
+                onClick={() => {
+                  setAttachmentMenuOpen(false);
+                  cameraInputRef.current?.click();
+                }}
+              >
+                <Icon name="camera" size={19} />
+                <span className="flex-1 text-left text-sm font-semibold">Camera</span>
+              </button>
+              <button
+                type="button"
+                className="list-row rounded-md"
+                onClick={() => {
+                  setAttachmentMenuOpen(false);
+                  photosInputRef.current?.click();
+                }}
+              >
+                <Icon name="image" size={19} />
+                <span className="flex-1 text-left text-sm font-semibold">Photos</span>
+              </button>
+              <button
+                type="button"
+                className="list-row rounded-md"
+                onClick={() => {
+                  setAttachmentMenuOpen(false);
+                  filesInputRef.current?.click();
+                }}
+              >
+                <Icon name="link" size={19} />
+                <span className="flex-1 text-left text-sm font-semibold">Files</span>
+              </button>
+            </div>
+          ) : null}
+
           <input
+            ref={cameraInputRef}
             type="file"
-            accept="image/*,video/*"
+            accept="image/*"
+            capture="environment"
             className="sr-only"
-            disabled={groupSendBlocked}
+            disabled={groupSendBlocked || uploading}
             onChange={(event) => {
-              const file = event.target.files?.[0];
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
               if (file) void uploadAndSend(file);
             }}
           />
-        </label>
+          <input
+            ref={photosInputRef}
+            type="file"
+            accept="image/*,video/*"
+            className="sr-only"
+            disabled={groupSendBlocked || uploading}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file) void uploadAndSend(file);
+            }}
+          />
+          <input
+            ref={filesInputRef}
+            type="file"
+            className="sr-only"
+            disabled={groupSendBlocked || uploading}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file) void uploadAndSend(file);
+            }}
+          />
+        </div>
         <label className="sr-only" htmlFor={`message-${conversationId}`}>
           Write a message
         </label>
@@ -880,6 +959,19 @@ function MessageBubble({
             <audio src={message.mediaUrl} controls preload="none" className="h-9 max-w-[190px]" />
             {message.durationSec ? <span className="text-xs numeric">{message.durationSec}s</span> : null}
           </div>
+        ) : null}
+
+        {message.kind === "document" && message.mediaUrl ? (
+          <a
+            href={message.mediaUrl}
+            download={message.body || "attachment"}
+            className="flex max-w-xs flex-col gap-1 rounded-md border border-current/20 px-3 py-2 underline"
+          >
+            <span className="break-all text-sm font-semibold">
+              {message.body || "Download attachment"}
+            </span>
+            <span className="text-xs opacity-70">Download file</span>
+          </a>
         ) : null}
 
         <div className="bubble-meta">

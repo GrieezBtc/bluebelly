@@ -178,7 +178,7 @@ export async function GET(request: Request) {
         // Private response: browsers may cache it briefly, but shared caches
         // must never store authenticated/private media.
         "Cache-Control": "private, no-store",
-        "Content-Disposition": "inline",
+        "Content-Disposition": storedAsset.kind === "document" ? "attachment" : "inline",
         "Accept-Ranges": "none",
         "X-Content-Type-Options": "nosniff",
       },

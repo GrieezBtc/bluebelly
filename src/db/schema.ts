@@ -27,7 +27,7 @@ export type MomentKind = "text" | "photo" | "video";
 export type FollowState = "pending" | "accepted";
 export type ConversationKind = "direct" | "group";
 export type MemberState = "active" | "requested" | "declined" | "left" | "removed";
-export type MessageKind = "text" | "voice" | "image" | "video" | "system";
+export type MessageKind = "text" | "voice" | "image" | "video" | "document" | "system";
 export type NotificationType =
   | "follow"
   | "follow_request"
@@ -348,7 +348,7 @@ export const mediaAssets = pgTable("media_assets", {
   storageKey: text("storage_key").notNull(),
   mimeType: text("mime_type").notNull(),
   sizeBytes: integer("size_bytes").default(0).notNull(),
-  kind: text("kind").$type<"image" | "video" | "audio">().notNull(),
+  kind: text("kind").$type<"image" | "video" | "audio" | "document">().notNull(),
   width: integer("width"),
   height: integer("height"),
   durationSec: integer("duration_sec"),

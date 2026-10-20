@@ -53,7 +53,7 @@ export async function POST(request: Request, { params }: Params) {
       return ok(detail);
     }
 
-    const kind = (["text", "voice", "image", "video"] as MessageView["kind"][]).includes(body.kind as MessageView["kind"])
+    const kind = (["text", "voice", "image", "video", "document"] as MessageView["kind"][]).includes(body.kind as MessageView["kind"])
       ? (body.kind as MessageView["kind"])
       : "text";
     const text = typeof body.body === "string" ? body.body.trim() : "";

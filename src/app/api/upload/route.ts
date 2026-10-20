@@ -28,6 +28,7 @@ export async function POST(request: Request) {
       const asset = await registerBlobUpload({
         ownerId: user.id,
         pathname: body.pathname,
+        allowDocuments: body.scope === "message",
         expiresInMs: body.scope === "message" ? MESSAGE_TTL_MS : null,
         width: Number(body.width) || null,
         height: Number(body.height) || null,
@@ -54,9 +55,10 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) throw badRequest("Attach a file to upload.");
     if (file.size > MAX_UPLOAD_BYTES) throw badRequest("That file is too large. The limit is 25 MB.");
     const mimeType = file.type || "application/octet-stream";
-    if (!/^(image|video|audio)\//.test(mimeType)) throw badRequest("Only photos, videos and voice notes can be uploaded.");
-
     const scope = String(form.get("scope") ?? "moment");
+    if (kindFromMime(mimeType) === "document" && scope !== "message") {
+      throw badRequest("Documents can only be uploaded in messages.");
+    }
     const buffer = Buffer.from(await file.arrayBuffer());
     const asset = await saveUpload({
       ownerId: user.id,
