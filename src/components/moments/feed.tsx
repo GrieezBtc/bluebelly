@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Icon, type IconName } from "@/components/icons";
+import { canEditFile, MediaEditor } from "@/components/media-editor";
 import { Avatar, EmptyState, ErrorState, Field, InfoBanner, LoadingRows, Spinner, useToast } from "@/components/ui";
 import { MomentCard } from "@/components/moments/moment-card";
 import { api, useQuery } from "@/lib/client";
@@ -152,6 +153,8 @@ export function Composer({
   useEffect(() => {
     if (audience === null && user) setAudience(user.profilePrivacy === "private" ? "followers" : "public");
   }, [user, audience]);
+
+  const [editing, setEditing] = useState<File | null>(null);
 
   async function pickFile(file: File) {
     setUploading(true);
@@ -319,12 +322,23 @@ export function Composer({
                 className="sr-only"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
-                  if (file) void pickFile(file);
+                  event.target.value = "";
+                  if (!file) return;
+                  if (canEditFile(file)) setEditing(file);
+                  else void pickFile(file);
                 }}
                 disabled={uploading}
               />
             </label>
           )}
+          <MediaEditor
+            file={editing}
+            onCancel={() => setEditing(null)}
+            onDone={(edited) => {
+              setEditing(null);
+              void pickFile(edited);
+            }}
+          />
         </div>
       ) : null}
 

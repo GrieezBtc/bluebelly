@@ -35,6 +35,9 @@ export async function GET(request: Request) {
     // freshly uploaded asset to be previewed before it is attached to a
     // Moment/message.
     let authorized = viewer?.id != null && viewer.id === asset.ownerId;
+    // How long the viewer's device may keep this file (seconds). Message media is tightened below.
+    let cacheSeconds = 300;
+    const DAY = 86400;
 
     if (!authorized) {
       // Moment media inherits the exact Moment/profile privacy rules.
@@ -69,6 +72,7 @@ export async function GET(request: Request) {
             )
           ) {
             authorized = true;
+            cacheSeconds = 30 * DAY;
             break;
           }
         }
@@ -91,7 +95,10 @@ export async function GET(request: Request) {
         .from(users)
         .where(and(eq(users.id, asset.ownerId), eq(users.avatarUrl, mediaLink)))
         .limit(1);
-      if (owner) authorized = true;
+      if (owner) {
+        authorized = true;
+        cacheSeconds = 30 * DAY;
+      }
     }
 
     if (!authorized && viewer && asset.ownerId != null) {
@@ -109,7 +116,10 @@ export async function GET(request: Request) {
           ),
         )
         .limit(1);
-      if (groups[0]) authorized = true;
+      if (groups[0]) {
+        authorized = true;
+        cacheSeconds = 30 * DAY;
+      }
     }
 
     if (!authorized && viewer) {
@@ -123,6 +133,7 @@ export async function GET(request: Request) {
           maxRetentionAt: messages.maxRetentionAt,
           expiredAt: messages.expiredAt,
           isSystem: messages.isSystem,
+          ttlSec: messages.ttlSec,
         })
         .from(messages)
         .where(
@@ -154,6 +165,10 @@ export async function GET(request: Request) {
 
         if (membership) {
           authorized = true;
+          if (message.ttlSec === 0) cacheSeconds = 0; // instant: never kept on the device
+          else if (message.expiresAt) cacheSeconds = Math.max(0, Math.floor((message.expiresAt.getTime() - now.getTime()) / 1000));
+          else if (message.ttlSec !== null) cacheSeconds = 0; // timer not started yet: do not keep
+          else cacheSeconds = 7 * DAY;
           break;
         }
       }
@@ -170,15 +185,24 @@ export async function GET(request: Request) {
     const expired = storedAsset.expiresAt ? storedAsset.expiresAt.getTime() <= Date.now() : false;
     if (expired) throw new Response(JSON.stringify({ ok: false, error: { code: "media_expired", message: "This attachment has expired." } }), { status: 410, headers: { "Content-Type": "application/json" } });
 
+    // Private cache only (never shared caches). Files stay on the device between refreshes, so the
+    // same photo or video is not downloaded again; disappearing-message media is kept no longer
+    // than its timer allows, and instant media is never kept.
+    const etag = `"m${id}-${size}"`;
+    const cacheControl = cacheSeconds > 0 ? `private, max-age=${cacheSeconds}` : "private, no-store";
+    if (cacheSeconds > 0 && request.headers.get("if-none-match") === etag) {
+      return new Response(null, { status: 304, headers: { ETag: etag, "Cache-Control": cacheControl, Vary: "Cookie, Authorization" } });
+    }
+
     return new Response(body as BodyInit, {
       status: 200,
       headers: {
         "Content-Type": storedAsset.mimeType,
         "Content-Length": String(size),
-        // Private response: browsers may cache it briefly, but shared caches
-        // must never store authenticated/private media.
-        "Cache-Control": "private, no-store",
-        "Content-Disposition": storedAsset.kind === "document" ? "attachment" : "inline",
+        "Cache-Control": cacheControl,
+        ...(cacheSeconds > 0 ? { ETag: etag } : {}),
+        Vary: "Cookie, Authorization",
+        "Content-Disposition": "inline",
         "Accept-Ranges": "none",
         "X-Content-Type-Options": "nosniff",
       },

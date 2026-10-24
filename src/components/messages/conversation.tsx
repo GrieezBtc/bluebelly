@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icons";
+import { canEditFile, MediaEditor } from "@/components/media-editor";
 import {
   Avatar,
   Badge,
@@ -58,6 +59,24 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const bottomRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const discardRef = useRef(false);
+  const startedAtRef = useRef(0);
+  const [voiceDraft, setVoiceDraft] = useState<{ blob: Blob; url: string; durationSec: number } | null>(null);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const [editing, setEditing] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (!recording) return;
+    const timer = window.setInterval(() => setRecSeconds(Math.round((Date.now() - startedAtRef.current) / 1000)), 500);
+    return () => window.clearInterval(timer);
+  }, [recording]);
+
+  useEffect(() => {
+    return () => {
+      discardRef.current = true;
+      if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
+    };
+  }, []);
 
   const load = useCallback(
     async (silent?: boolean) => {
@@ -183,40 +202,65 @@ export function ConversationView({ conversationId }: { conversationId: number })
     }
   }
 
+  function stopRecording(discard: boolean) {
+    discardRef.current = discard;
+    recorderRef.current?.stop();
+    setRecording(false);
+  }
+
+  function discardVoiceDraft() {
+    setVoiceDraft((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }
+
+  async function sendVoiceDraft() {
+    if (!voiceDraft) return;
+    const draftToSend = voiceDraft;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", new File([draftToSend.blob], "voice.webm", { type: draftToSend.blob.type || "audio/webm" }));
+      form.append("scope", "message");
+      const uploaded = await api.upload<{ url: string }>("/api/upload", form);
+      await send("voice", "", uploaded.url, draftToSend.durationSec);
+      discardVoiceDraft();
+    } catch (err) {
+      show({ title: "Voice note failed", description: err instanceof Error ? err.message : "Try again.", tone: "error" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function toggleRecording() {
     if (recording) {
-      recorderRef.current?.stop();
-      setRecording(false);
+      stopRecording(false);
       return;
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
+      discardRef.current = false;
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
-      recorder.onstop = async () => {
+      recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
+        if (discardRef.current) return;
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
         if (blob.size < 800) {
           show({ title: "Voice note too short", tone: "info" });
           return;
         }
-        setUploading(true);
-        try {
-          const form = new FormData();
-          form.append("file", new File([blob], "voice.webm", { type: blob.type }));
-          form.append("scope", "message");
-          const uploaded = await api.upload<{ url: string }>("/api/upload", form);
-          await send("voice", "", uploaded.url, Math.max(1, Math.round(blob.size / 4000)));
-        } catch (err) {
-          show({ title: "Voice note failed", description: err instanceof Error ? err.message : undefined, tone: "error" });
-        } finally {
-          setUploading(false);
-        }
+        const durationSec = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
+        // Keep it as a draft so the person can listen first, then send or delete it.
+        setVoiceDraft({ blob, url: URL.createObjectURL(blob), durationSec });
       };
       recorder.start();
+      startedAtRef.current = Date.now();
+      setRecSeconds(0);
       recorderRef.current = recorder;
       setRecording(true);
     } catch {
@@ -227,6 +271,11 @@ export function ConversationView({ conversationId }: { conversationId: number })
         tone: "error",
       });
     }
+  }
+
+  async function playbackEnded(messageId: number) {
+    await api.post(`/api/conversations/${conversationId}`, { action: "playback-ended", messageId }).catch(() => undefined);
+    void load(true);
   }
 
   async function conversationAction(
@@ -425,6 +474,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
                 message={message}
                 showSender={conversation.kind === "group"}
                 protect={Boolean(instant)}
+                onPlaybackEnded={() => void playbackEnded(message.id)}
                 now={now}
                 onOpenMenu={() => setMessageMenu(message)}
               />
@@ -467,8 +517,42 @@ export function ConversationView({ conversationId }: { conversationId: number })
           </button>
         </div>
       ) : null}
+      {recording ? (
+        <div className="chat-input safe-bottom z-10 shrink-0" role="status" aria-label="Recording a voice message">
+          <button type="button" className="btn-icon" aria-label="Cancel recording" onClick={() => stopRecording(true)}>
+            <Icon name="trash" size={20} />
+          </button>
+          <div className="flex flex-1 items-center gap-2">
+            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-coral" aria-hidden="true" />
+            <span className="body-sm numeric">
+              Recording… {Math.floor(recSeconds / 60)}:{String(recSeconds % 60).padStart(2, "0")}
+            </span>
+          </div>
+          <button type="button" className="btn btn-primary" onClick={() => stopRecording(false)} aria-label="Stop and preview">
+            <Icon name="check" size={18} />
+          </button>
+        </div>
+      ) : null}
+      {voiceDraft && !recording ? (
+        <div className="chat-input safe-bottom z-10 shrink-0" aria-label="Voice message preview">
+          <button type="button" className="btn-icon" aria-label="Delete voice message" onClick={discardVoiceDraft} disabled={uploading}>
+            <Icon name="trash" size={20} />
+          </button>
+          <audio src={voiceDraft.url} controls preload="metadata" className="h-9 min-w-0 flex-1" />
+          <span className="text-xs numeric">{voiceDraft.durationSec}s</span>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void sendVoiceDraft()}
+            disabled={uploading || groupSendBlocked}
+            aria-label="Send voice message"
+          >
+            {uploading ? <Spinner /> : <Icon name="send" size={18} />}
+          </button>
+        </div>
+      ) : null}
       <form
-        className="chat-input safe-bottom z-10 shrink-0"
+        className={cn("chat-input safe-bottom z-10 shrink-0", (recording || voiceDraft) && "hidden")}
         onSubmit={(event) => {
           event.preventDefault();
           if (groupSendBlocked) return;
@@ -487,7 +571,11 @@ export function ConversationView({ conversationId }: { conversationId: number })
             disabled={groupSendBlocked}
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file) void uploadAndSend(file);
+              event.target.value = "";
+              if (!file) return;
+              // Photos and videos open in the editor first so they can be cropped or trimmed.
+              if (canEditFile(file)) setEditing(file);
+              else void uploadAndSend(file);
             }}
           />
         </label>
@@ -520,6 +608,15 @@ export function ConversationView({ conversationId }: { conversationId: number })
           </button>
         )}
       </form>
+
+      <MediaEditor
+        file={editing}
+        onCancel={() => setEditing(null)}
+        onDone={(edited) => {
+          setEditing(null);
+          void uploadAndSend(edited);
+        }}
+      />
 
       <Overlay open={infoOpen} onClose={() => setInfoOpen(false)} title={conversation.title} description={conversation.expiryLabel}>
         <div className="flex flex-col gap-4">
@@ -877,12 +974,14 @@ function MessageBubble({
   message,
   showSender,
   protect,
+  onPlaybackEnded,
   now,
   onOpenMenu,
 }: {
   message: MessageView;
   showSender: boolean;
   protect: boolean;
+  onPlaybackEnded: () => void;
   now: number;
   onOpenMenu: () => void;
 }) {
@@ -940,6 +1039,7 @@ function MessageBubble({
             playsInline
             preload="metadata"
             className="max-h-72 w-full max-w-xs rounded-sm"
+            onEnded={protect && !message.isMine ? onPlaybackEnded : undefined}
             {...(protect ? { controlsList: "nodownload noremoteplayback", disablePictureInPicture: true, disableRemotePlayback: true } : {})}
           />
         ) : null}
@@ -952,6 +1052,7 @@ function MessageBubble({
               controls
               preload="none"
               className="h-9 max-w-[190px]"
+              onEnded={protect && !message.isMine ? onPlaybackEnded : undefined}
               {...(protect ? { controlsList: "nodownload noremoteplayback", disableRemotePlayback: true } : {})}
             />
             {message.durationSec ? <span className="text-xs numeric">{message.durationSec}s</span> : null}
@@ -979,7 +1080,11 @@ function MessageBubble({
         {message.disappears ? (
           <span className={cn("expiry-note", message.isMine && "expiry-note-mine", expiredSoon && "text-coral")}>
             <Icon name="clock" size={11} />
-            {message.notViewedYet ? EXPIRY_COPY.directNotViewed : countdown ?? EXPIRY_COPY.group}
+            {!message.expiresAt && protect && !message.isMine && (message.kind === "voice" || message.kind === "video")
+              ? "Disappears 10 seconds after playback ends"
+              : message.notViewedYet
+                ? EXPIRY_COPY.directNotViewed
+                : countdown ?? EXPIRY_COPY.group}
           </span>
         ) : null}
       </div>

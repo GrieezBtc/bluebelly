@@ -1287,7 +1287,7 @@ export async function markConversationRead(viewer: AuthUser, conversationId: num
 
   const now = new Date();
   const unread = await db
-    .select({ id: messages.id, senderId: messages.senderId, ttlSec: messages.ttlSec })
+    .select({ id: messages.id, senderId: messages.senderId, ttlSec: messages.ttlSec, kind: messages.kind })
     .from(messages)
     .where(
       and(
@@ -1307,6 +1307,8 @@ export async function markConversationRead(viewer: AuthUser, conversationId: num
       const byTtl = new Map<number, number[]>();
       for (const m of unread) {
         if (m.ttlSec === null) continue; // sent with disappearing messages off
+        // Instant voice/video: the countdown starts when playback ends (see markPlaybackEnded).
+        if (m.ttlSec === 0 && (m.kind === "voice" || m.kind === "video")) continue;
         byTtl.set(m.ttlSec, [...(byTtl.get(m.ttlSec) ?? []), m.id]);
       }
       for (const [ttl, messageIds] of byTtl) {
@@ -1333,6 +1335,37 @@ export async function markConversationRead(viewer: AuthUser, conversationId: num
     .update(conversationMembers)
     .set({ lastReadAt: now })
     .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, viewer.id)));
+}
+
+/** Instant voice/video: start the countdown once the recipient has finished playing it. */
+export async function markPlaybackEnded(viewer: AuthUser, conversationId: number, messageId: number) {
+  const [row] = await db
+    .select({
+      id: messages.id,
+      senderId: messages.senderId,
+      ttlSec: messages.ttlSec,
+      expiresAt: messages.expiresAt,
+      kind: messages.kind,
+      conversationId: messages.conversationId,
+      type: conversations.kind,
+    })
+    .from(messages)
+    .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+    .where(and(eq(messages.id, messageId), eq(messages.conversationId, conversationId)))
+    .limit(1);
+  if (!row) throw new Error("not_found");
+  if (row.senderId === viewer.id || row.type !== "direct" || row.ttlSec !== 0 || row.expiresAt) return;
+  if (row.kind !== "voice" && row.kind !== "video") return;
+  const [membership] = await db
+    .select({ state: conversationMembers.state })
+    .from(conversationMembers)
+    .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, viewer.id)))
+    .limit(1);
+  if (!membership || ["left", "declined", "removed"].includes(membership.state)) throw new Error("forbidden");
+  await db
+    .update(messages)
+    .set({ expiresAt: new Date(Date.now() + INSTANT_GRACE_SEC * 1000) })
+    .where(and(eq(messages.id, messageId), isNull(messages.expiresAt)));
 }
 
 export async function sendMessage(

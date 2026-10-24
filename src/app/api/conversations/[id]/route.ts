@@ -3,6 +3,7 @@ import { requireVerifiedUser } from "@/lib/auth";
 import {
   getConversationDetail,
   markConversationRead,
+  markPlaybackEnded,
   respondToConversation,
   sendMessage,
   sweepIfStale,
@@ -41,11 +42,17 @@ export async function POST(request: Request, { params }: Params) {
       mediaUrl?: string;
       durationSec?: number;
       replyToId?: number;
+      messageId?: number;
     }>(request);
 
     if (body.action === "read") {
       await markConversationRead(user, conversationId);
       return ok({ read: true });
+    }
+    if (body.action === "playback-ended") {
+      if (typeof body.messageId !== "number" || !Number.isInteger(body.messageId)) throw notFound("Message not found.");
+      await markPlaybackEnded(user, conversationId, body.messageId);
+      return ok({ started: true });
     }
     if (body.action === "acknowledge-expired") {
       const detail = await getConversationDetail(user, conversationId);
@@ -53,7 +60,7 @@ export async function POST(request: Request, { params }: Params) {
       return ok(detail);
     }
 
-    const kind = (["text", "voice", "image", "video", "document"] as MessageView["kind"][]).includes(body.kind as MessageView["kind"])
+    const kind = (["text", "voice", "image", "video"] as MessageView["kind"][]).includes(body.kind as MessageView["kind"])
       ? (body.kind as MessageView["kind"])
       : "text";
     const text = typeof body.body === "string" ? body.body.trim() : "";
