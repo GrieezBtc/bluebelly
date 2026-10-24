@@ -1544,3 +1544,25 @@ body {
     animation: none;
   }
 }
+
+/* Instant (10 second) chats: deter copying and saving. Browsers cannot block screenshots. */
+.chat-protected {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.chat-protected img,
+.chat-protected video {
+  -webkit-user-drag: none;
+}
+.chat-protected img {
+  pointer-events: none;
+}
+.chat-obscured > * {
+  visibility: hidden;
+}
+@media print {
+  .chat-protected {
+    display: none !important;
+  }
+}

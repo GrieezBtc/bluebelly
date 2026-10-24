@@ -41,7 +41,6 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [recorderSupported, setRecorderSupported] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -55,10 +54,8 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [removeTarget, setRemoveTarget] = useState<{ username: string; name: string } | null>(null);
   const [replyingTo, setReplyingTo] = useState<MessageView | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [obscured, setObscured] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const photosInputRef = useRef<HTMLInputElement>(null);
-  const filesInputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -70,6 +67,11 @@ export function ConversationView({ conversationId }: { conversationId: number })
         setDetail(result);
         setError(null);
         await api.post(`/api/conversations/${conversationId}`, { action: "read" }).catch(() => undefined);
+        // Instant chats: the 10 second timer starts when the read is recorded, so pick it up straight away.
+        if (result.conversation.disappearAfterSec === 0 && result.messages.some((m) => !m.isMine && m.notViewedYet)) {
+          const fresh = await api.get<ConversationDetail>(`/api/conversations/${conversationId}`).catch(() => null);
+          if (fresh) setDetail(fresh);
+        }
       } catch (err) {
         if (!silent) setError(err instanceof Error ? err.message : "This conversation could not be opened.");
       } finally {
@@ -83,15 +85,47 @@ export function ConversationView({ conversationId }: { conversationId: number })
     void load();
   }, [load]);
 
-  useEffect(() => {
-    const interval = window.setInterval(() => void load(true), 12000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const instant = detail?.conversation.kind === "direct" && detail.conversation.disappearAfterSec === 0;
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    // Instant chats refresh faster so the 10 second timers stay accurate.
+    const interval = window.setInterval(() => void load(true), instant ? 3000 : 12000);
+    return () => window.clearInterval(interval);
+  }, [load, instant]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), instant ? 1000 : 30_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [instant]);
+
+  // Instant mode only: hide the chat whenever the app is not in front, and on PrintScreen.
+  // (A browser cannot detect or block screenshots; these steps reduce casual exposure.)
+  useEffect(() => {
+    if (!instant) {
+      setObscured(false);
+      return;
+    }
+    const hide = () => setObscured(true);
+    const reveal = () => setObscured(document.visibilityState === "hidden");
+    const onVisibility = () => setObscured(document.visibilityState === "hidden");
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "PrintScreen") {
+        setObscured(true);
+        void navigator.clipboard?.writeText("").catch(() => undefined);
+        window.setTimeout(() => setObscured(document.visibilityState === "hidden"), 2500);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", hide);
+    window.addEventListener("focus", reveal);
+    window.addEventListener("keyup", onKey);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", hide);
+      window.removeEventListener("focus", reveal);
+      window.removeEventListener("keyup", onKey);
+    };
+  }, [instant]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
@@ -137,11 +171,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
       form.append("file", file);
       form.append("scope", "message");
       const uploaded = await api.upload<{ url: string; kind: string }>("/api/upload", form);
-      const kind =
-        uploaded.kind === "document" ? "document" :
-        uploaded.kind === "video" ? "video" :
-        uploaded.kind === "audio" ? "voice" : "image";
-      await send(kind, kind === "document" ? file.name : "", uploaded.url);
+      await send(uploaded.kind === "video" ? "video" : "image", "", uploaded.url);
     } catch (err) {
       show({
         title: "Upload failed",
@@ -265,7 +295,9 @@ export function ConversationView({ conversationId }: { conversationId: number })
   }
 
   if (!detail) return null;
-  const { conversation, messages } = detail;
+  const { conversation } = detail;
+  // Hide messages the moment their timer runs out, without waiting for the next refresh.
+  const messages = detail.messages.filter((m) => !m.expiresAt || new Date(m.expiresAt).getTime() > now);
   const isRequest = conversation.state === "requested";
   const currentMember = conversation.members.find((member) => member.id === user?.id);
   async function saveEdit() {
@@ -347,11 +379,24 @@ export function ConversationView({ conversationId }: { conversationId: number })
           </div>
         ) : (
           <div className="py-3">
-            <InfoBanner tone="info" icon="lock">
-              <p>
-                <strong>Private chat.</strong> Only people in this chat can see its messages, photos and voice notes.
-              </p>
-            </InfoBanner>
+            {instant ? (
+              <InfoBanner tone="warn" icon="clock">
+                <p>
+                  <strong>Instant mode.</strong> Messages disappear 10 seconds after they are viewed. Copying and saving are turned
+                  off, and this chat is hidden whenever Bemblo is not in front of you.
+                </p>
+                <p className="pt-1">
+                  Bemblo cannot block screenshots or screen recording on a phone browser, so only share what you are comfortable
+                  with.
+                </p>
+              </InfoBanner>
+            ) : (
+              <InfoBanner tone="info" icon="lock">
+                <p>
+                  <strong>Private chat.</strong> Only people in this chat can see its messages, photos and voice notes.
+                </p>
+              </InfoBanner>
+            )}
           </div>
         )}
 
@@ -361,17 +406,25 @@ export function ConversationView({ conversationId }: { conversationId: number })
             title="No messages yet"
             description={
               conversation.kind === "group"
-                ? "Say hello to the group. Everything here disappears 7 days after sending."
-                : "Send the first message. It disappears 24 hours after it is viewed."
+                ? `Say hello to the group. ${conversation.expiryLabel}.`
+                : `Send the first message. ${conversation.expiryLabel}.`
             }
           />
         ) : (
-          <ol className="flex flex-col gap-2 py-2" aria-label="Message history">
+          <ol
+            className={cn("flex flex-col gap-2 py-2", instant && "chat-protected", instant && obscured && "chat-obscured")}
+            aria-label="Message history"
+            onCopy={instant ? (event) => event.preventDefault() : undefined}
+            onCut={instant ? (event) => event.preventDefault() : undefined}
+            onContextMenu={instant ? (event) => event.preventDefault() : undefined}
+            onDragStart={instant ? (event) => event.preventDefault() : undefined}
+          >
             {messages.map((message) => (
               <MessageBubble
                 key={message.id}
                 message={message}
                 showSender={conversation.kind === "group"}
+                protect={Boolean(instant)}
                 now={now}
                 onOpenMenu={() => setMessageMenu(message)}
               />
@@ -407,7 +460,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
           <Icon name="reply" size={16} />
           <div className="min-w-0 flex-1 border-l-2 border-[color:var(--line)] pl-2">
             <p className="truncate text-xs font-semibold">Replying to {replyingTo.isMine ? "yourself" : (replyingTo.sender?.name ?? "message")}</p>
-            <p className="caption truncate">{replyingTo.kind === "text" ? replyingTo.body : replyingTo.kind === "voice" ? "Voice message" : replyingTo.kind === "image" ? "Photo" : replyingTo.kind === "document" ? (replyingTo.body || "File") : "Video"}</p>
+            <p className="caption truncate">{replyingTo.kind === "text" ? replyingTo.body : replyingTo.kind === "voice" ? "Voice message" : replyingTo.kind === "image" ? "Photo" : "Video"}</p>
           </div>
           <button type="button" className="btn-icon" aria-label="Cancel reply" onClick={() => setReplyingTo(null)}>
             <Icon name="x" size={16} />
@@ -422,93 +475,22 @@ export function ConversationView({ conversationId }: { conversationId: number })
           if (draft.trim()) void send("text", draft.trim());
         }}
       >
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            className={cn("btn-icon", groupSendBlocked && "pointer-events-none opacity-50")}
-            aria-label="Attachment options"
-            aria-expanded={attachmentMenuOpen}
-            disabled={groupSendBlocked || uploading}
-            onClick={() => setAttachmentMenuOpen((open) => !open)}
-          >
-            {uploading ? <Spinner /> : <Icon name="plus" size={22} />}
-          </button>
-
-          {attachmentMenuOpen ? (
-            <div className="absolute bottom-full left-0 z-30 mb-2 flex min-w-40 flex-col rounded-md border border-line bg-surface p-1 shadow-lg">
-              <button
-                type="button"
-                className="list-row rounded-md"
-                onClick={() => {
-                  setAttachmentMenuOpen(false);
-                  cameraInputRef.current?.click();
-                }}
-              >
-                <Icon name="camera" size={19} />
-                <span className="flex-1 text-left text-sm font-semibold">Camera</span>
-              </button>
-              <button
-                type="button"
-                className="list-row rounded-md"
-                onClick={() => {
-                  setAttachmentMenuOpen(false);
-                  photosInputRef.current?.click();
-                }}
-              >
-                <Icon name="image" size={19} />
-                <span className="flex-1 text-left text-sm font-semibold">Photos</span>
-              </button>
-              <button
-                type="button"
-                className="list-row rounded-md"
-                onClick={() => {
-                  setAttachmentMenuOpen(false);
-                  filesInputRef.current?.click();
-                }}
-              >
-                <Icon name="link" size={19} />
-                <span className="flex-1 text-left text-sm font-semibold">Files</span>
-              </button>
-            </div>
-          ) : null}
-
+        <label
+          className={cn("btn-icon", groupSendBlocked && "pointer-events-none opacity-50")}
+          aria-label="Attach a photo or video"
+        >
+          {uploading ? <Spinner /> : <Icon name="image" size={22} />}
           <input
-            ref={cameraInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="sr-only"
-            disabled={groupSendBlocked || uploading}
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
-              if (file) void uploadAndSend(file);
-            }}
-          />
-          <input
-            ref={photosInputRef}
             type="file"
             accept="image/*,video/*"
             className="sr-only"
-            disabled={groupSendBlocked || uploading}
+            disabled={groupSendBlocked}
             onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
+              const file = event.target.files?.[0];
               if (file) void uploadAndSend(file);
             }}
           />
-          <input
-            ref={filesInputRef}
-            type="file"
-            className="sr-only"
-            disabled={groupSendBlocked || uploading}
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
-              if (file) void uploadAndSend(file);
-            }}
-          />
-        </div>
+        </label>
         <label className="sr-only" htmlFor={`message-${conversationId}`}>
           Write a message
         </label>
@@ -777,7 +759,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
               </span>
             </button>
           ) : null}
-          {messageMenu?.body ? (
+          {messageMenu?.body && !instant ? (
             <button
               type="button"
               className="list-row rounded-md"
@@ -894,11 +876,13 @@ export function ConversationView({ conversationId }: { conversationId: number })
 function MessageBubble({
   message,
   showSender,
+  protect,
   now,
   onOpenMenu,
 }: {
   message: MessageView;
   showSender: boolean;
+  protect: boolean;
   now: number;
   onOpenMenu: () => void;
 }) {
@@ -950,28 +934,28 @@ function MessageBubble({
         ) : null}
 
         {message.kind === "video" && message.mediaUrl ? (
-          <video src={message.mediaUrl} controls playsInline preload="metadata" className="max-h-72 w-full max-w-xs rounded-sm" />
+          <video
+            src={message.mediaUrl}
+            controls
+            playsInline
+            preload="metadata"
+            className="max-h-72 w-full max-w-xs rounded-sm"
+            {...(protect ? { controlsList: "nodownload noremoteplayback", disablePictureInPicture: true, disableRemotePlayback: true } : {})}
+          />
         ) : null}
 
         {message.kind === "voice" && message.mediaUrl ? (
           <div className="flex items-center gap-2">
             <Icon name="mic" size={16} />
-            <audio src={message.mediaUrl} controls preload="none" className="h-9 max-w-[190px]" />
+            <audio
+              src={message.mediaUrl}
+              controls
+              preload="none"
+              className="h-9 max-w-[190px]"
+              {...(protect ? { controlsList: "nodownload noremoteplayback", disableRemotePlayback: true } : {})}
+            />
             {message.durationSec ? <span className="text-xs numeric">{message.durationSec}s</span> : null}
           </div>
-        ) : null}
-
-        {message.kind === "document" && message.mediaUrl ? (
-          <a
-            href={message.mediaUrl}
-            download={message.body || "attachment"}
-            className="flex max-w-xs flex-col gap-1 rounded-md border border-current/20 px-3 py-2 underline"
-          >
-            <span className="break-all text-sm font-semibold">
-              {message.body || "Download attachment"}
-            </span>
-            <span className="text-xs opacity-70">Download file</span>
-          </a>
         ) : null}
 
         <div className="bubble-meta">

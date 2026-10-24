@@ -9,8 +9,8 @@ export const MESSAGE_EXPIRY = {
   maxUnviewedRetentionMs: 30 * 24 * 60 * 60 * 1000,
 };
 
-/** How long an "instant" message stays after it has been viewed (so voice notes and photos can still be opened). */
-export const INSTANT_GRACE_SEC = 30;
+/** How long an "instant" message stays after it has been viewed. */
+export const INSTANT_GRACE_SEC = 10;
 
 export type DisappearChoice = "off" | "instant" | "24h" | "7d" | "30d";
 
@@ -55,8 +55,8 @@ export function describeDisappearing(kind: "direct" | "group", sec: number | nul
   }
   if (choice === "instant") {
     return {
-      label: "Disappears right after viewing",
-      explanation: "New messages disappear moments after the other person views them. Until then the countdown has not started.",
+      label: "Disappears 10 seconds after viewing",
+      explanation: "Instant mode: new messages disappear 10 seconds after the other person views them, and the chat is hidden whenever the app is not in front. Until a message is viewed the countdown has not started.",
     };
   }
   const d = DISAPPEAR_LABELS[choice];

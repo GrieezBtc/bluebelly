@@ -36,6 +36,7 @@ export function timeLeftLabel(iso: string | null): string | null {
   if (!iso) return null;
   const ms = new Date(iso).getTime() - Date.now();
   if (ms <= 0) return "expired";
+  if (ms < 60_000) return `${Math.ceil(ms / 1000)}s left`;
   const totalMinutes = Math.round(ms / 60000);
   if (totalMinutes < 60) return `${totalMinutes}m left`;
   const hours = Math.floor(totalMinutes / 60);
