@@ -64,6 +64,8 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [voiceDraft, setVoiceDraft] = useState<{ blob: Blob; url: string; durationSec: number } | null>(null);
   const [recSeconds, setRecSeconds] = useState(0);
   const [editing, setEditing] = useState<File | null>(null);
+  const [pendingMedia, setPendingMedia] = useState<{ file: File; url: string } | null>(null);
+  const [caption, setCaption] = useState("");
 
   useEffect(() => {
     if (!recording) return;
@@ -172,7 +174,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
       setDetail((current) => (current ? { ...current, messages: [...current.messages, result.message] } : current));
       setDraft("");
     } catch (err) {
-      setFailedDraft(body);
+      if (kind === "text") setFailedDraft(body);
       show({
         title: "Message not sent",
         description: err instanceof Error ? err.message : "Check your connection and try again.",
@@ -183,14 +185,14 @@ export function ConversationView({ conversationId }: { conversationId: number })
     }
   }
 
-  async function uploadAndSend(file: File) {
+  async function uploadAndSend(file: File, captionText = "") {
     setUploading(true);
     try {
       const form = new FormData();
       form.append("file", file);
       form.append("scope", "message");
       const uploaded = await api.upload<{ url: string; kind: string }>("/api/upload", form);
-      await send(uploaded.kind === "video" ? "video" : "image", "", uploaded.url);
+      await send(uploaded.kind === "video" ? "video" : "image", captionText.trim().slice(0, 1000), uploaded.url);
     } catch (err) {
       show({
         title: "Upload failed",
@@ -349,15 +351,44 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const messages = detail.messages.filter((m) => !m.expiresAt || new Date(m.expiresAt).getTime() > now);
   const isRequest = conversation.state === "requested";
   const currentMember = conversation.members.find((member) => member.id === user?.id);
+  function stageMedia(file: File) {
+    setPendingMedia((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return { file, url: URL.createObjectURL(file) };
+    });
+    setCaption("");
+  }
+
+  function closeStaged() {
+    setPendingMedia((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+    setCaption("");
+  }
+
+  async function sendStaged() {
+    if (!pendingMedia) return;
+    const { file } = pendingMedia;
+    const text = caption;
+    closeStaged();
+    await uploadAndSend(file, text);
+  }
+
+  function startReply(message: MessageView) {
+    setReplyingTo(message);
+    window.setTimeout(() => document.getElementById(`message-${conversationId}`)?.focus(), 50);
+  }
+
   async function saveEdit() {
     if (!editTarget) return;
     const target = editTarget;
     const text = editValue.trim();
-    if (text.length === 0) return;
+    if (text.length === 0 && target.kind === "text") return;
     setEditTarget(null);
     try {
       await api.patch(`/api/conversations/${conversationId}/messages/${target.id}`, { body: text });
-      show({ title: "Message edited", tone: "success" });
+      show({ title: target.kind === "text" ? "Message edited" : "Caption updated", tone: "success" });
     } catch (err) {
       show({ title: err instanceof Error ? err.message : "Could not edit that message.", tone: "error" });
     }
@@ -461,7 +492,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
           />
         ) : (
           <ol
-            className={cn("flex flex-col gap-2 py-2", instant && "chat-protected", instant && obscured && "chat-obscured")}
+            className={cn("flex flex-col gap-2 overflow-x-clip py-2", instant && "chat-protected", instant && obscured && "chat-obscured")}
             aria-label="Message history"
             onCopy={instant ? (event) => event.preventDefault() : undefined}
             onCut={instant ? (event) => event.preventDefault() : undefined}
@@ -475,6 +506,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
                 showSender={conversation.kind === "group"}
                 protect={Boolean(instant)}
                 onPlaybackEnded={() => void playbackEnded(message.id)}
+                onReply={groupSendBlocked ? undefined : () => startReply(message)}
                 now={now}
                 onOpenMenu={() => setMessageMenu(message)}
               />
@@ -575,7 +607,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
               if (!file) return;
               // Photos and videos open in the editor first so they can be cropped or trimmed.
               if (canEditFile(file)) setEditing(file);
-              else void uploadAndSend(file);
+              else stageMedia(file);
             }}
           />
         </label>
@@ -614,9 +646,43 @@ export function ConversationView({ conversationId }: { conversationId: number })
         onCancel={() => setEditing(null)}
         onDone={(edited) => {
           setEditing(null);
-          void uploadAndSend(edited);
+          stageMedia(edited);
         }}
       />
+
+      <Overlay open={Boolean(pendingMedia)} onClose={closeStaged} title={pendingMedia?.file.type.startsWith("video/") ? "Send video" : "Send photo"}>
+        {pendingMedia ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex justify-center rounded-md bg-black/80 p-2">
+              {pendingMedia.file.type.startsWith("video/") ? (
+                <video src={pendingMedia.url} controls playsInline preload="metadata" className="max-h-[46vh] max-w-full rounded-sm" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={pendingMedia.url} alt="Preview" className="max-h-[46vh] max-w-full rounded-sm object-contain" />
+              )}
+            </div>
+            <Field label="Caption (optional)" htmlFor="media-caption">
+              <textarea
+                id="media-caption"
+                className="textarea"
+                rows={2}
+                maxLength={1000}
+                placeholder="Add a caption…"
+                value={caption}
+                onChange={(event) => setCaption(event.target.value)}
+              />
+            </Field>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn btn-secondary" onClick={closeStaged}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void sendStaged()} disabled={groupSendBlocked}>
+                <Icon name="send" size={16} /> Send
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Overlay>
 
       <Overlay open={infoOpen} onClose={() => setInfoOpen(false)} title={conversation.title} description={conversation.expiryLabel}>
         <div className="flex flex-col gap-4">
@@ -819,7 +885,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
               type="button"
               className="list-row rounded-md"
               onClick={() => {
-                setReplyingTo(messageMenu);
+                startReply(messageMenu);
                 setMessageMenu(null);
               }}
             >
@@ -838,7 +904,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
               }}
             >
               <Icon name="edit" size={20} />
-              <span className="flex-1 text-left text-sm font-semibold">Edit message</span>
+              <span className="flex-1 text-left text-sm font-semibold">{messageMenu.kind === "text" ? "Edit message" : "Edit caption"}</span>
             </button>
           ) : null}
           {messageMenu?.canDelete ? (
@@ -894,8 +960,8 @@ export function ConversationView({ conversationId }: { conversationId: number })
         </div>
       </Overlay>
 
-      <Overlay open={Boolean(editTarget)} onClose={() => setEditTarget(null)} title="Edit message" variant="dialog">
-        <Field label="Message" htmlFor="edit-message">
+      <Overlay open={Boolean(editTarget)} onClose={() => setEditTarget(null)} title={editTarget && editTarget.kind !== "text" ? "Edit caption" : "Edit message"} variant="dialog">
+        <Field label={editTarget && editTarget.kind !== "text" ? "Caption" : "Message"} htmlFor="edit-message">
           <textarea
             id="edit-message"
             className="input min-h-24"
@@ -911,7 +977,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
           <button
             type="button"
             className="btn btn-primary"
-            disabled={editValue.trim().length === 0 || editValue.trim() === editTarget?.body}
+            disabled={(editValue.trim().length === 0 && editTarget?.kind === "text") || editValue.trim() === editTarget?.body}
             onClick={() => void saveEdit()}
           >
             Save
@@ -975,6 +1041,7 @@ function MessageBubble({
   showSender,
   protect,
   onPlaybackEnded,
+  onReply,
   now,
   onOpenMenu,
 }: {
@@ -982,9 +1049,48 @@ function MessageBubble({
   showSender: boolean;
   protect: boolean;
   onPlaybackEnded: () => void;
+  onReply?: () => void;
   now: number;
   onOpenMenu: () => void;
 }) {
+  // Swipe sideways on a message to reply to it (touch and pen; mouse users have the menu).
+  const [dx, setDx] = useState(0);
+  const swipeRef = useRef<{ x: number; y: number; locked: boolean; fired: boolean } | null>(null);
+  const SWIPE_TRIGGER = 44;
+
+  function swipeStart(event: React.PointerEvent<HTMLLIElement>) {
+    if (!onReply || event.pointerType === "mouse") return;
+    if ((event.target as HTMLElement).closest("audio,video,button,a,input,textarea")) return;
+    swipeRef.current = { x: event.clientX, y: event.clientY, locked: false, fired: false };
+  }
+
+  function swipeMove(event: React.PointerEvent<HTMLLIElement>) {
+    const state = swipeRef.current;
+    if (!state) return;
+    const moveX = event.clientX - state.x;
+    const moveY = event.clientY - state.y;
+    if (!state.locked) {
+      if (Math.abs(moveY) > 10 && Math.abs(moveY) > Math.abs(moveX)) {
+        swipeRef.current = null;
+        return;
+      }
+      if (Math.abs(moveX) < 10) return;
+      state.locked = true;
+    }
+    const limited = Math.max(-64, Math.min(64, moveX * 0.6));
+    setDx(limited);
+    const armed = Math.abs(moveX) * 0.6 >= SWIPE_TRIGGER;
+    if (armed && !state.fired) navigator.vibrate?.(12); // a tiny buzz: let go now to reply
+    state.fired = armed;
+  }
+
+  function swipeEnd() {
+    const state = swipeRef.current;
+    swipeRef.current = null;
+    setDx(0);
+    if (state?.fired) onReply?.();
+  }
+
   if (message.isSystem) {
     return (
       <li className="flex justify-center">
@@ -1011,7 +1117,27 @@ function MessageBubble({
   const expiredSoon = message.expiresAt ? new Date(message.expiresAt).getTime() - now < 60 * 60 * 1000 : false;
 
   return (
-    <li className={cn("flex items-end gap-2", message.isMine ? "justify-end" : "justify-start")}>
+    <li
+      className={cn("relative flex items-end gap-2", message.isMine ? "justify-end" : "justify-start")}
+      style={{ touchAction: onReply ? "pan-y" : undefined }}
+      onPointerDown={swipeStart}
+      onPointerMove={swipeMove}
+      onPointerUp={swipeEnd}
+      onPointerCancel={swipeEnd}
+    >
+      {dx !== 0 ? (
+        <span
+          aria-hidden="true"
+          className="absolute top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-[color:var(--line)]"
+          style={{ [dx > 0 ? "left" : "right"]: 4, opacity: Math.min(Math.abs(dx) / SWIPE_TRIGGER, 1) }}
+        >
+          <Icon name="reply" size={16} />
+        </span>
+      ) : null}
+      <div
+        className={cn("flex min-w-0 items-end gap-2", dx === 0 && "transition-transform")}
+        style={{ transform: dx ? `translateX(${dx}px)` : undefined }}
+      >
       {!message.isMine && showSender ? <Avatar user={message.sender ?? { name: "?" }} size="xs" /> : null}
       <div className={cn("bubble", message.isMine ? "bubble-mine" : "bubble-theirs")}>
         {showSender && !message.isMine && message.sender ? (
@@ -1042,6 +1168,10 @@ function MessageBubble({
             onEnded={protect && !message.isMine ? onPlaybackEnded : undefined}
             {...(protect ? { controlsList: "nodownload noremoteplayback", disablePictureInPicture: true, disableRemotePlayback: true } : {})}
           />
+        ) : null}
+
+        {(message.kind === "image" || message.kind === "video") && message.body ? (
+          <p className="mt-1 whitespace-pre-wrap">{message.body}</p>
         ) : null}
 
         {message.kind === "voice" && message.mediaUrl ? (
@@ -1087,6 +1217,7 @@ function MessageBubble({
                 : countdown ?? EXPIRY_COPY.group}
           </span>
         ) : null}
+      </div>
       </div>
     </li>
   );

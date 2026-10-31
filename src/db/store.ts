@@ -1237,7 +1237,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       editedAt: m.editedAt ? m.editedAt.toISOString() : null,
       deleted,
       deletedBy: deleted ? (m.deletedById === m.senderId ? "sender" : "admin") : null,
-      canEdit: !deleted && !m.isSystem && isMine && m.kind === "text",
+      canEdit: !deleted && !m.isSystem && isMine && (m.kind === "text" || m.kind === "image" || m.kind === "video"),
       canDelete: !deleted && !m.isSystem && (isMine || isAdminHere),
       disappears,
       replyTo: deleted ? null : resolveReply(m.replyToId),
@@ -1467,7 +1467,7 @@ export async function sendMessage(
     editedAt: null,
     deleted: false,
     deletedBy: null,
-    canEdit: created.kind === "text",
+    canEdit: created.kind === "text" || created.kind === "image" || created.kind === "video",
     canDelete: true,
     replyTo: replyTarget
       ? {
@@ -1484,7 +1484,6 @@ export async function sendMessage(
 export async function editMessage(viewer: AuthUser, conversationId: number, messageId: number, rawBody: string) {
   await requireActiveConversationMember(viewer, conversationId);
   const body = rawBody.trim();
-  if (body.length === 0) throw new Error("empty");
   if (body.length > 4000) throw new Error("too_long");
   const now = new Date();
   const [message] = await db
@@ -1495,7 +1494,9 @@ export async function editMessage(viewer: AuthUser, conversationId: number, mess
   if (!message || message.isSystem || message.expiredAt || (message.expiresAt && message.expiresAt <= now)) throw new Error("not_found");
   if (message.deletedAt) throw new Error("message_deleted");
   if (message.senderId !== viewer.id) throw new Error("not_author");
-  if (message.kind !== "text") throw new Error("not_text");
+  // Text messages and photo/video captions can be edited; a caption may be cleared, a text message may not.
+  if (message.kind !== "text" && message.kind !== "image" && message.kind !== "video") throw new Error("not_text");
+  if (message.kind === "text" && body.length === 0) throw new Error("empty");
   if (message.body === body) return { id: message.id, body: message.body, editedAt: message.editedAt?.toISOString() ?? null };
   const [updated] = await db.update(messages).set({ body, editedAt: now }).where(eq(messages.id, messageId)).returning();
   return { id: updated.id, body: updated.body, editedAt: now.toISOString() };
