@@ -51,6 +51,26 @@ export async function enablePushOnDevice(): Promise<{ ok: true } | { ok: false; 
   }
 }
 
+/**
+ * Keep this device's subscription registered. Installing Bemblo to the home screen (or clearing site data)
+ * can leave the server holding an old endpoint, so on every launch we make sure the current one is saved.
+ * Never asks for permission: it only acts when notifications are already allowed.
+ */
+export async function resyncPushSubscription() {
+  try {
+    if (!pushSupported() || Notification.permission !== "granted") return;
+    const { publicKey } = await api.get<{ publicKey: string | null }>("/api/push");
+    if (!publicKey) return;
+    const reg = await registration();
+    const sub =
+      (await reg.pushManager.getSubscription()) ??
+      (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) }));
+    await api.post("/api/push", { subscription: sub.toJSON() });
+  } catch {
+    /* best effort: the next launch tries again */
+  }
+}
+
 export async function disablePushOnDevice() {
   const sub = await currentSubscription();
   if (!sub) return;

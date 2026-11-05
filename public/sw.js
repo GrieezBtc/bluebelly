@@ -96,7 +96,8 @@ self.addEventListener("push", (event) => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       // The in-app badges already update while Bemblo is open and focused, so skip the pop-up.
       const focused = windows.some((w) => w.focused && w.visibilityState === "visible");
-      if (focused) {
+      // A test from Settings must always pop up, so the person can see that delivery works.
+      if (focused && payload.tag !== "bemblo-test") {
         windows.forEach((w) => w.postMessage({ type: "bemblo:push", payload }));
         return;
       }

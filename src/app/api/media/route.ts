@@ -194,6 +194,40 @@ export async function GET(request: Request) {
       return new Response(null, { status: 304, headers: { ETag: etag, "Cache-Control": cacheControl, Vary: "Cookie, Authorization" } });
     }
 
+    // Safari/iOS will not play audio or video unless the server answers byte-range requests.
+    const rangeHeader = request.headers.get("range");
+    const rangeMatch = rangeHeader ? /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim()) : null;
+    if (rangeMatch && size > 0) {
+      const bytes = new Uint8Array(await new Response(body as BodyInit).arrayBuffer());
+      const total = bytes.byteLength;
+      let start = rangeMatch[1] === "" ? NaN : Number(rangeMatch[1]);
+      let end = rangeMatch[2] === "" ? NaN : Number(rangeMatch[2]);
+      if (Number.isNaN(start)) {
+        // "bytes=-N": the last N bytes
+        start = Math.max(0, total - (Number.isNaN(end) ? 0 : end));
+        end = total - 1;
+      } else if (Number.isNaN(end) || end >= total) {
+        end = total - 1;
+      }
+      if (start > end || start >= total) {
+        return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${total}` } });
+      }
+      const slice = bytes.slice(start, end + 1);
+      return new Response(slice, {
+        status: 206,
+        headers: {
+          "Content-Type": storedAsset.mimeType,
+          "Content-Length": String(slice.byteLength),
+          "Content-Range": `bytes ${start}-${end}/${total}`,
+          "Accept-Ranges": "bytes",
+          "Cache-Control": cacheControl,
+          "Content-Disposition": "inline",
+          "X-Content-Type-Options": "nosniff",
+          Vary: "Cookie, Authorization",
+        },
+      });
+    }
+
     return new Response(body as BodyInit, {
       status: 200,
       headers: {
@@ -203,7 +237,7 @@ export async function GET(request: Request) {
         ...(cacheSeconds > 0 ? { ETag: etag } : {}),
         Vary: "Cookie, Authorization",
         "Content-Disposition": "inline",
-        "Accept-Ranges": "none",
+        "Accept-Ranges": "bytes",
         "X-Content-Type-Options": "nosniff",
       },
     });

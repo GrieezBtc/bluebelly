@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
+import { resyncPushSubscription } from "@/lib/push-client";
 import { ToastProvider } from "@/components/ui";
 import type { SessionUser } from "@/lib/types";
 
@@ -49,45 +50,6 @@ export function SessionProvider({ user: initialUser, children }: { user: Session
     }
   }, [router]);
 
-
-  useEffect(() => {
-    if (!user?.id) return;
-
-    let inFlight = false;
-
-    const heartbeat = () => {
-      if (
-        document.visibilityState !== "visible" ||
-        !navigator.onLine ||
-        inFlight
-      ) {
-        return;
-      }
-
-      inFlight = true;
-      void api
-        .post("/api/presence")
-        .catch(() => {
-          // A failed heartbeat must not interrupt the app.
-        })
-        .finally(() => {
-          inFlight = false;
-        });
-    };
-
-    heartbeat();
-
-    const interval = window.setInterval(heartbeat, 45_000);
-    document.addEventListener("visibilitychange", heartbeat);
-    window.addEventListener("online", heartbeat);
-
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", heartbeat);
-      window.removeEventListener("online", heartbeat);
-    };
-  }, [user?.id]);
-
   const value = useMemo<SessionContextValue>(
     () => ({ user, status: user ? "authenticated" : "anonymous", setUser, refresh, signOut }),
     [user, refresh, signOut],
@@ -117,6 +79,17 @@ export function ServiceWorkerRegistrar() {
     }, 1200);
     return () => window.clearTimeout(timer);
   }, []);
+  return null;
+}
+
+export function PushSync() {
+  const { user } = useSession();
+  const wantsPush = user ? user.notificationPrefs?.push !== false : false;
+  useEffect(() => {
+    if (!wantsPush) return;
+    const timer = window.setTimeout(() => void resyncPushSubscription(), 3000);
+    return () => window.clearTimeout(timer);
+  }, [wantsPush]);
   return null;
 }
 
@@ -163,6 +136,7 @@ export function AppProviders({ user, children }: { user: SessionUser; children: 
       <ToastProvider>
         <ThemeSync />
         <ServiceWorkerRegistrar />
+        <PushSync />
         <NetworkBanner />
         {children}
       </ToastProvider>

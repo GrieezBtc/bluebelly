@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icons";
 import { canEditFile, MediaEditor } from "@/components/media-editor";
+import { pickVoiceMime, toUniversalAudio } from "@/lib/audio";
 import {
   Avatar,
   Badge,
@@ -223,7 +224,9 @@ export function ConversationView({ conversationId }: { conversationId: number })
     setUploading(true);
     try {
       const form = new FormData();
-      form.append("file", new File([draftToSend.blob], "voice.webm", { type: draftToSend.blob.type || "audio/webm" }));
+      const voiceType = draftToSend.blob.type.split(";")[0] || "audio/webm";
+      const voiceExt = voiceType === "audio/wav" ? "wav" : voiceType.includes("mp4") || voiceType.includes("aac") ? "m4a" : "webm";
+      form.append("file", new File([draftToSend.blob], `voice.${voiceExt}`, { type: voiceType }));
       form.append("scope", "message");
       const uploaded = await api.upload<{ url: string }>("/api/upload", form);
       await send("voice", "", uploaded.url, draftToSend.durationSec);
@@ -242,23 +245,28 @@ export function ConversationView({ conversationId }: { conversationId: number })
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const preferred = pickVoiceMime();
+      const recorder = preferred ? new MediaRecorder(stream, { mimeType: preferred }) : new MediaRecorder(stream);
       chunksRef.current = [];
       discardRef.current = false;
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
         if (discardRef.current) return;
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        if (blob.size < 800) {
+        const raw = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        if (raw.size < 800) {
           show({ title: "Voice note too short", tone: "info" });
           return;
         }
-        const durationSec = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
+        const elapsed = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
+        // Make sure the note is in a format iPhones and Android phones can both play.
+        const converted = await toUniversalAudio(raw);
+        if (discardRef.current) return;
+        const durationSec = converted.durationSec ? Math.max(1, Math.round(converted.durationSec)) : elapsed;
         // Keep it as a draft so the person can listen first, then send or delete it.
-        setVoiceDraft({ blob, url: URL.createObjectURL(blob), durationSec });
+        setVoiceDraft({ blob: converted.blob, url: URL.createObjectURL(converted.blob), durationSec });
       };
       recorder.start();
       startedAtRef.current = Date.now();

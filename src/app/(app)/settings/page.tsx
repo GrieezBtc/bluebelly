@@ -143,6 +143,20 @@ function SettingsInner() {
     }
   }
 
+  async function sendTestPush() {
+    try {
+      await enablePushOnDevice();
+      const result = await api.post<{ devices: number }>("/api/push/test", {});
+      show(
+        result.devices > 0
+          ? { title: "Test sent", description: "You should see a notification in a few seconds. If not, check your phone's notification settings for Bemblo.", tone: "success" }
+          : { title: "No device is registered", description: "Allow notifications when asked, then try again.", tone: "info" },
+      );
+    } catch (error) {
+      show({ title: "Could not send a test", description: error instanceof Error ? error.message : undefined, tone: "error" });
+    }
+  }
+
   async function enablePush() {
     const result = await enablePushOnDevice();
     if (result.ok) {
@@ -152,7 +166,7 @@ function SettingsInner() {
     }
     const copy = {
       unsupported: "This browser does not support push. On iPhone, add Bemblo to your Home Screen first.",
-      denied: "Notifications are blocked. Allow them for Bemblo in your browser or phone settings, then try again.",
+      denied: "Notifications are blocked. Allow them for Bemblo in your phone's app settings (Settings → Apps → Bemblo → Notifications) or your browser's site settings, then try again.",
       not_configured: "Push is not configured on the server yet.",
       error: result.message ?? "Something went wrong. Please try again.",
     }[result.reason];
@@ -673,6 +687,9 @@ function SettingsInner() {
           </InfoBanner>
           <button type="button" className="btn btn-primary" onClick={enablePush}>
             <Icon name="bell" size={16} /> Enable push on this device
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => void sendTestPush()}>
+            <Icon name="bell" size={16} /> Send a test notification
           </button>
         </div>
       ) : null}
