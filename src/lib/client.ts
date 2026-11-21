@@ -21,7 +21,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(path, { ...init, headers, credentials: "same-origin" });
   } catch {
-    throw new ApiClientError("network_unavailable", "You appear to be offline. Bemblo will retry when you reconnect.");
+    throw new ApiClientError("network_unavailable", "You appear to be offline. BlueBelly will retry when you reconnect.");
   }
   let payload: unknown = null;
   try {
@@ -31,7 +31,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   const body = payload as ApiSuccess<T> | ApiFailure | null;
   if (!body || typeof body !== "object" || !("ok" in body)) {
-    throw new ApiClientError("server_error", "Unexpected response from Bemblo. Please try again.");
+    throw new ApiClientError("server_error", "Unexpected response from BlueBelly. Please try again.");
   }
   if (!body.ok) throw new ApiClientError(body.error.code, body.error.message);
   return body.data;
@@ -112,7 +112,7 @@ export type QueryState<T> = {
   setData: (updater: T | ((current: T | null) => T)) => void;
 };
 
-/** Small data hook shared by every Bemblo screen. */
+/** Small data hook shared by every BlueBelly screen. */
 export function useQuery<T>(path: string | null, options?: { skip?: boolean }): QueryState<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);

@@ -12,7 +12,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const user = await requireVerifiedUser(request);
-    if (!isAdminUser(user)) throw forbidden("This area is only for Bemblo admins.", "admin_required");
+    if (!isAdminUser(user)) throw forbidden("This area is only for BlueBelly admins.", "admin_required");
     const body = await readJson<{ status?: string; note?: string }>(request);
     if (body.status !== "reviewing" && body.status !== "resolved" && body.status !== "dismissed") {
       throw badRequest("Choose a valid status.");

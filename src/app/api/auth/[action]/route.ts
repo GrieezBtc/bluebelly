@@ -186,7 +186,7 @@ async function signup(request: Request) {
   await db.insert(notifications).values({
     userId: created.id,
     type: "system",
-    preview: "Welcome to Bemblo. Add a photo and say hello to a friend.",
+    preview: "Welcome to BlueBelly. Add a photo and say hello to a friend.",
   });
 
   const verification = PREVIEW_AUTH_LINKS
@@ -266,7 +266,7 @@ async function forgot(request: Request) {
     // Never reveal whether an account exists.
     return ok({
       delivered: true,
-      message: "If that email has a Bemblo account, a reset link is on its way.",
+      message: "If that email has a BlueBelly account, a reset link is on its way.",
     });
   }
 
@@ -324,7 +324,7 @@ async function forgot(request: Request) {
   } = {
     message: PREVIEW_AUTH_LINKS
       ? "Reset link created. It expires in 1 hour."
-      : "If that email has a Bemblo account, a reset link is on its way.",
+      : "If that email has a BlueBelly account, a reset link is on its way.",
   };
 
   if (PREVIEW_AUTH_LINKS) {

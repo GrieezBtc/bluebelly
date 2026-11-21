@@ -197,7 +197,7 @@ export async function DELETE(request: Request) {
     await db.delete(blocks).where(or(eq(blocks.blockerId, user.id), eq(blocks.blockedId, user.id)));
     await db.delete(sessions).where(eq(sessions.userId, user.id));
     await db.delete(users).where(eq(users.id, user.id));
-    return ok({ message: "Your Bemblo account and data were deleted." });
+    return ok({ message: "Your BlueBelly account and data were deleted." });
   } catch (error) {
     return fail(error);
   }

@@ -34,12 +34,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { code } = await params;
   const moment = await loadPublicMoment(code);
   if (!moment) {
-    return { title: "Moment on Bemblo", robots: { index: false }, description: "Join Bemblo — Talk. Share. Connect." };
+    return { title: "Moment on BlueBelly", robots: { index: false }, description: "Join BlueBelly — Talk. Share. Connect." };
   }
   const base = await origin();
   const url = `${base}/moment/p/${code}`;
-  const title = `${moment.author.name} (@${moment.author.username}) on Bemblo`;
-  const fallback = moment.kind === "photo" ? "Shared a photo on Bemblo" : moment.kind === "video" ? "Shared a video on Bemblo" : "Shared a Moment on Bemblo";
+  const title = `${moment.author.name} (@${moment.author.username}) on BlueBelly`;
+  const fallback = moment.kind === "photo" ? "Shared a photo on BlueBelly" : moment.kind === "video" ? "Shared a video on BlueBelly" : "Shared a Moment on BlueBelly";
   const description = moment.body ? excerpt(moment.body, 200) : fallback;
   // Photos use the photo itself; text/video Moments get a generated card.
   const image =
@@ -52,7 +52,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { type: "article", url, title, description, siteName: "Bemblo", images: [{ url: image }] },
+    openGraph: { type: "article", url, title, description, siteName: "BlueBelly", images: [{ url: image }] },
     twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
@@ -72,7 +72,7 @@ export default async function SharedMomentPage({ params }: Props) {
     <PublicProviders>
       <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 py-5">
         <header className="flex items-center justify-between pb-4">
-          <Link href="/" aria-label="Bemblo home">
+          <Link href="/" aria-label="BlueBelly home">
             <BrandMark size={30} />
           </Link>
           <div className="flex items-center gap-2">
@@ -100,7 +100,7 @@ export default async function SharedMomentPage({ params }: Props) {
               {moment.body ? <p className="whitespace-pre-wrap px-4 pt-3 text-base leading-relaxed">{moment.body}</p> : null}
               {moment.kind === "photo" && moment.mediaUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={moment.mediaUrl} alt={moment.body ? excerpt(moment.body, 120) : "Photo shared on Bemblo"} className="mt-3 w-full" />
+                <img src={moment.mediaUrl} alt={moment.body ? excerpt(moment.body, 120) : "Photo shared on BlueBelly"} className="mt-3 w-full" />
               ) : null}
               {moment.kind === "video" && moment.mediaUrl ? (
                 <video src={moment.mediaUrl} poster={moment.posterUrl ?? undefined} controls playsInline preload="metadata" className="mt-3 w-full" />
@@ -122,7 +122,7 @@ export default async function SharedMomentPage({ params }: Props) {
           )}
 
           <section className="card card-pad text-center">
-            <h2 className="h3">{moment ? `Join ${moment.author.name.split(" ")[0]} on Bemblo` : "Join Bemblo"}</h2>
+            <h2 className="h3">{moment ? `Join ${moment.author.name.split(" ")[0]} on BlueBelly` : "Join BlueBelly"}</h2>
             <p className="body-sm pt-1">Like, comment and follow. Private chats, lasting Moments, privacy you control.</p>
             <div className="flex flex-col gap-2 pt-4">
               <Link href="/signup" className="btn btn-primary btn-block">

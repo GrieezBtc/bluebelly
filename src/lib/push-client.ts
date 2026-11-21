@@ -52,7 +52,7 @@ export async function enablePushOnDevice(): Promise<{ ok: true } | { ok: false; 
 }
 
 /**
- * Keep this device's subscription registered. Installing Bemblo to the home screen (or clearing site data)
+ * Keep this device's subscription registered. Installing BlueBelly to the home screen (or clearing site data)
  * can leave the server holding an old endpoint, so on every launch we make sure the current one is saved.
  * Never asks for permission: it only acts when notifications are already allowed.
  */

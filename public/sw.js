@@ -1,7 +1,7 @@
-/* Bemblo service worker — offline shell + fast repeat loads.
+/* BlueBelly service worker — offline shell + fast repeat loads.
    Data requests always go to the network first: privacy rules and message
    expiration are enforced server-side and must never be served from cache. */
-const VERSION = "bemblo-v1";
+const VERSION = "bluebelly-v2";
 const SHELL_CACHE = `${VERSION}-shell`;
 const MEDIA_CACHE = `${VERSION}-media`;
 const OFFLINE_URL = "/offline";
@@ -85,7 +85,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let payload = { title: "Bemblo", body: "You have new activity.", url: "/notifications" };
+  let payload = { title: "BlueBelly", body: "You have new activity.", url: "/notifications" };
   try {
     if (event.data) payload = { ...payload, ...event.data.json() };
   } catch {
@@ -94,7 +94,7 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      // The in-app badges already update while Bemblo is open and focused, so skip the pop-up.
+      // The in-app badges already update while BlueBelly is open and focused, so skip the pop-up.
       const focused = windows.some((w) => w.focused && w.visibilityState === "visible");
       // A test from Settings must always pop up, so the person can see that delivery works.
       if (focused && payload.tag !== "bemblo-test") {

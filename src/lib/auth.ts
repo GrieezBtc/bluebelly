@@ -100,7 +100,7 @@ export async function requireVerifiedUser(request?: Request): Promise<AuthUser> 
   if (!user.emailVerifiedAt) {
     const { forbidden } = await import("@/lib/api");
     throw forbidden(
-      "Please verify your email address before using Bemblo.",
+      "Please verify your email address before using BlueBelly.",
       "email_not_verified",
     );
   }

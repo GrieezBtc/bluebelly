@@ -51,7 +51,7 @@ export const USERNAME_RULES = {
   min: 3,
   max: 20,
   pattern: /^[a-z0-9._]+$/,
-  reserved: ["bemblo", "admin", "support", "help", "root", "system", "team", "official", "security", "moderator", "staff"],
+  reserved: ["bluebelly", "bemblo", "admin", "support", "help", "root", "system", "team", "official", "security", "moderator", "staff"],
 };
 
 export function validateUsername(value: string): { ok: true; value: string } | { ok: false; message: string } {

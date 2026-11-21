@@ -502,7 +502,7 @@ export function ReportDialog({
         <div className="banner banner-brand">
           <Icon name="shield-check" size={20} />
           <span>
-            Thank you — your report is with Bemblo Safety. We review reports within 24 hours and never tell the other person
+            Thank you — your report is with BlueBelly Safety. We review reports within 24 hours and never tell the other person
             who reported them.
           </span>
         </div>

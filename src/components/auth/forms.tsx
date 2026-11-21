@@ -96,7 +96,7 @@ export function LoginForm() {
         Log in
       </button>
       <p className="body-sm text-center">
-        New to Bemblo?{" "}
+        New to BlueBelly?{" "}
         <Link href="/signup" className="font-semibold text-brand">
           Create an account
         </Link>
@@ -329,7 +329,7 @@ export function ForgotPasswordForm() {
           Back to log in
         </Link>
         <Link href="/support" className="body-sm">
-          Locked out of your email too? Contact Bemblo Support for account recovery.
+          Locked out of your email too? Contact BlueBelly Support for account recovery.
         </Link>
       </div>
     </form>

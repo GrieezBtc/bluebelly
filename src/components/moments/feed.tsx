@@ -534,7 +534,7 @@ export function SuggestionsRail() {
 }
 
 /** Horizontal "Suggested for you" strip, like the people carousels on other social apps. */
-/** "Follow Bemblo" card: shown on Home until the viewer follows the official account. */
+/** "Follow BlueBelly" card: shown on Home until the viewer follows the official account. */
 export function OfficialFollowCard() {
   const { data } = useQuery<{ users: UserSummary[] }>("/api/users?kind=official");
   const [busy, setBusy] = useState(false);
@@ -557,7 +557,7 @@ export function OfficialFollowCard() {
   }
 
   return (
-    <section className="card card-pad flex items-center gap-3" aria-label="Follow the official Bemblo account">
+    <section className="card card-pad flex items-center gap-3" aria-label="Follow the official BlueBelly account">
       <Avatar user={official} size="md" />
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1 text-sm font-semibold">
@@ -566,7 +566,7 @@ export function OfficialFollowCard() {
           </Link>
           <Icon name="shield-check" size={14} className="shrink-0 text-brand" />
         </p>
-        <p className="caption">Follow for announcements and what is coming next on Bemblo.</p>
+        <p className="caption">Follow for announcements and what is coming next on BlueBelly.</p>
       </div>
       <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void follow(official)}>
         Follow

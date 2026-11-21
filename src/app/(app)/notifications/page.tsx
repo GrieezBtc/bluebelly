@@ -32,7 +32,7 @@ const TITLES: Record<NotificationTypeWire, string> = {
   mention: "mentioned you",
   message_request: "sent a message request",
   message: "sent you a message",
-  system: "Bemblo",
+  system: "BlueBelly",
 };
 
 export default function NotificationsPage() {
@@ -133,14 +133,14 @@ export default function NotificationsPage() {
                 onClick={() => !item.read && markOne(item.id)}
               >
                 <span className="relative">
-                  <Avatar user={item.actor ?? { name: "Bemblo", accent: "violet" }} size="md" />
+                  <Avatar user={item.actor ?? { name: "BlueBelly", accent: "violet" }} size="md" />
                   <span className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-surface text-brand">
                     <Icon name={ICONS[item.type]} size={13} />
                   </span>
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm">
-                    <span className="font-semibold">{item.actor?.name ?? "Bemblo"}</span>{" "}
+                    <span className="font-semibold">{item.actor?.name ?? "BlueBelly"}</span>{" "}
                     <span className="body-sm">{TITLES[item.type]}</span>
                   </span>
                   {item.preview ? <span className="body-sm block truncate">{item.preview}</span> : null}

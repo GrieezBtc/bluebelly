@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     return ok(
       {
         id: ticket.id,
-        message: `Thanks — your request #${ticket.id} is with Bemblo Support. Average reply time is under 4 hours.`,
+        message: `Thanks — your request #${ticket.id} is with BlueBelly Support. Average reply time is under 4 hours.`,
       },
       201,
     );

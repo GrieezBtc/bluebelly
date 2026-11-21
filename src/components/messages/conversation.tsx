@@ -471,10 +471,10 @@ export function ConversationView({ conversationId }: { conversationId: number })
               <InfoBanner tone="warn" icon="clock">
                 <p>
                   <strong>Instant mode.</strong> Messages disappear 10 seconds after they are viewed. Copying and saving are turned
-                  off, and this chat is hidden whenever Bemblo is not in front of you.
+                  off, and this chat is hidden whenever BlueBelly is not in front of you.
                 </p>
                 <p className="pt-1">
-                  Bemblo cannot block screenshots or screen recording on a phone browser, so only share what you are comfortable
+                  BlueBelly cannot block screenshots or screen recording on a phone browser, so only share what you are comfortable
                   with.
                 </p>
               </InfoBanner>

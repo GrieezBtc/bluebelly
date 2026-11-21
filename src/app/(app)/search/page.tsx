@@ -64,7 +64,7 @@ export default function SearchPage() {
     <div className="page search-page px-4">
       <PageHeader title="Search" subtitle="People, usernames and Moment text" />
 
-      <Field label="Search Bemblo" htmlFor="global-search">
+      <Field label="Search BlueBelly" htmlFor="global-search">
         <div className="input-affix">
           <Icon name="search" size={18} className="text-ink-3" />
           <input

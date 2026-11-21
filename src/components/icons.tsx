@@ -156,23 +156,18 @@ export function Icon({ name, size = 22, filled = false, strokeWidth = 1.75, clas
 export function BrandMark({ size = 32, showWord = true }: { size?: number; showWord?: boolean }) {
   return (
     <span className="brandmark">
-      <svg width={size} height={size} viewBox="0 0 40 40" role="img" aria-label="Bemblo">
+      <svg width={size} height={size} viewBox="0 0 40 40" role="img" aria-label="BlueBelly">
         <defs>
           <linearGradient id="bemblo-mark" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#6C4BF7" />
-            <stop offset="60%" stopColor="#9A5CFF" />
-            <stop offset="100%" stopColor="#12B886" />
+            <stop offset="0%" stopColor="#FF2FA0" />
+            <stop offset="60%" stopColor="#B02CE0" />
+            <stop offset="100%" stopColor="#5B21D6" />
           </linearGradient>
         </defs>
         <rect width="40" height="40" rx="12" fill="url(#bemblo-mark)" />
-        <path
-          d="M13 11.5h7.6a4.7 4.7 0 0 1 1.2 9.25 4.9 4.9 0 0 1-2 9.35h-3.3v3.4h-3.5z"
-          fill="#fff"
-          opacity="0.96"
-        />
-        <circle cx="27.5" cy="27.5" r="2.6" fill="#fff" opacity="0.8" />
+        <path fillRule="evenodd" d="M12 9h9.2c3.7 0 6.3 2.2 6.3 5.5 0 2.1-1.1 3.7-2.9 4.5 2.4.7 3.9 2.6 3.9 5.2 0 3.7-2.9 6.3-7.2 6.3H12zM16 12.4v4.6h4.4c1.6 0 2.6-.9 2.6-2.3s-1-2.3-2.6-2.3zM16 20.4v5.2h4.9c1.8 0 2.9-1 2.9-2.6s-1.1-2.6-2.9-2.6z" fill="#fff" />
       </svg>
-      {showWord ? <span className="brandmark__text">bemblo</span> : null}
+      {showWord ? <span className="brandmark__text">BlueBelly</span> : null}
     </span>
   );
 }

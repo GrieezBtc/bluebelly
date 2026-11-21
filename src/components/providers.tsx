@@ -62,8 +62,10 @@ export function ThemeSync() {
   useEffect(() => {
     const stored = window.localStorage.getItem("bemblo-theme");
     const root = document.documentElement;
-    if (stored === "dark") root.classList.add("dark");
+    // Deep purple is the default look; "light" and "system" are opt-in.
     if (stored === "light") root.classList.remove("dark");
+    else if (stored === "system") root.classList.toggle("dark", window.matchMedia("(prefers-color-scheme: dark)").matches);
+    else root.classList.add("dark");
   }, []);
   return null;
 }
@@ -100,7 +102,7 @@ export function NetworkBanner() {
   useEffect(() => {
     const update = () => {
       setOnline(navigator.onLine);
-      if (!navigator.onLine) setBanner("You are offline. Bemblo will sync when your connection returns.");
+      if (!navigator.onLine) setBanner("You are offline. BlueBelly will sync when your connection returns.");
       else setBanner(null);
     };
     update();

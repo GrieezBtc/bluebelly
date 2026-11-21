@@ -59,7 +59,7 @@ function SettingsInner() {
   const blocked = useQuery<{ users: UserSummary[] }>(tab === "privacy" ? "/api/users?kind=blocked" : null);
   const muted = useQuery<{ users: UserSummary[] }>(tab === "privacy" ? "/api/users?kind=muted" : null);
   const pending = useQuery<{ users: UserSummary[] }>(tab === "privacy" ? "/api/users?kind=pending" : null);
-  const theme = useState(() => (typeof window === "undefined" ? "system" : window.localStorage.getItem("bemblo-theme") ?? "system"))[0];
+  const theme = useState(() => (typeof window === "undefined" ? "system" : window.localStorage.getItem("bemblo-theme") ?? "dark"))[0];
   const [themeValue, setThemeValue] = useState(theme);
 
   useEffect(() => {
@@ -149,7 +149,7 @@ function SettingsInner() {
       const result = await api.post<{ devices: number }>("/api/push/test", {});
       show(
         result.devices > 0
-          ? { title: "Test sent", description: "You should see a notification in a few seconds. If not, check your phone's notification settings for Bemblo.", tone: "success" }
+          ? { title: "Test sent", description: "You should see a notification in a few seconds. If not, check your phone's notification settings for BlueBelly.", tone: "success" }
           : { title: "No device is registered", description: "Allow notifications when asked, then try again.", tone: "info" },
       );
     } catch (error) {
@@ -165,8 +165,8 @@ function SettingsInner() {
       return;
     }
     const copy = {
-      unsupported: "This browser does not support push. On iPhone, add Bemblo to your Home Screen first.",
-      denied: "Notifications are blocked. Allow them for Bemblo in your phone's app settings (Settings → Apps → Bemblo → Notifications) or your browser's site settings, then try again.",
+      unsupported: "This browser does not support push. On iPhone, add BlueBelly to your Home Screen first.",
+      denied: "Notifications are blocked. Allow them for BlueBelly in your phone's app settings (Settings → Apps → BlueBelly → Notifications) or your browser's site settings, then try again.",
       not_configured: "Push is not configured on the server yet.",
       error: result.message ?? "Something went wrong. Please try again.",
     }[result.reason];
@@ -412,7 +412,7 @@ function SettingsInner() {
                 options={[
                   { value: "system", label: "System" },
                   { value: "light", label: "Light" },
-                  { value: "dark", label: "Dark" },
+                  { value: "dark", label: "Deep purple" },
                 ]}
               />
             </div>
@@ -420,7 +420,7 @@ function SettingsInner() {
               <Icon name="bell" size={16} /> Enable push notifications
             </button>
             <p className="caption">
-              Installing Bemblo from your browser menu adds it to your home screen with a full-screen layout and an offline shell.
+              Installing BlueBelly from your browser menu adds it to your home screen with a full-screen layout and an offline shell.
             </p>
           </section>
 
@@ -634,7 +634,7 @@ function SettingsInner() {
             </div>
             <InfoBanner tone="warn" icon="alert" title="What expiry can and cannot do">
               <p>
-                Expiry is enforced by Bemblo&apos;s servers and attachments are deleted with the message. Expiring messages cannot
+                Expiry is enforced by BlueBelly&apos;s servers and attachments are deleted with the message. Expiring messages cannot
                 prevent screenshots, screen recording or photographing a screen.
               </p>
             </InfoBanner>
@@ -681,7 +681,7 @@ function SettingsInner() {
           </section>
           <InfoBanner tone="info" icon="bell" title="Browser support varies">
             <p>
-              Push notifications depend on your browser and operating system. Where push is unavailable, Bemblo still shows in-app
+              Push notifications depend on your browser and operating system. Where push is unavailable, BlueBelly still shows in-app
               notification badges.
             </p>
           </InfoBanner>
@@ -739,7 +739,7 @@ function SettingsInner() {
       <ConfirmDialog
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        title="Delete your Bemblo account?"
+        title="Delete your BlueBelly account?"
         description="Your profile, Moments, conversations and message attachments will be permanently removed."
         confirmLabel="Delete my account"
         tone="danger"

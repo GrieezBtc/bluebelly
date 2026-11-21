@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const user = await requireVerifiedUser(request);
-    if (!isAdminUser(user)) throw forbidden("This area is only for Bemblo admins.", "admin_required");
+    if (!isAdminUser(user)) throw forbidden("This area is only for BlueBelly admins.", "admin_required");
     return ok(await getAdminInbox());
   } catch (error) {
     return fail(error);

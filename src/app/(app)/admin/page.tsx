@@ -116,7 +116,7 @@ function TicketCard({ ticket, onDone }: { ticket: AdminTicketRow; onDone: () => 
     }
   }
 
-  const mailto = `mailto:${ticket.email}?subject=${encodeURIComponent(`Re: [Bemblo #${ticket.id}] ${ticket.subject}`)}`;
+  const mailto = `mailto:${ticket.email}?subject=${encodeURIComponent(`Re: [BlueBelly #${ticket.id}] ${ticket.subject}`)}`;
 
   return (
     <li className="card card-pad flex flex-col gap-2">
@@ -186,7 +186,7 @@ export default function AdminInboxPage() {
     return (
       <div className="page px-4">
         <PageHeader title="Admin inbox" backHref="/home" />
-        <ErrorState title="Not available" description={error ?? "This area is only for Bemblo admins."} onRetry={reload} />
+        <ErrorState title="Not available" description={error ?? "This area is only for BlueBelly admins."} onRetry={reload} />
       </div>
     );
   }

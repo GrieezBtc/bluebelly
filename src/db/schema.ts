@@ -12,7 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * Bemblo data model.
+ * BlueBelly data model.
  *
  * The three privacy systems are intentionally separate:
  *  1. Account privacy   -> users.profilePrivacy
@@ -67,7 +67,7 @@ export const users = pgTable(
     sensitiveContent: text("sensitive_content").$type<"show" | "warn" | "hide">().default("warn").notNull(),
     notificationPrefs: jsonb("notification_prefs").$type<NotificationPrefs>(),
     verified: boolean("verified").default(false).notNull(),
-    // Bemblo's own announcement account: followable, but never messageable.
+    // BlueBelly's own announcement account: followable, but never messageable.
     isOfficial: boolean("is_official").default(false).notNull(),
     // Can open the admin inbox (reports + support requests).
     isAdmin: boolean("is_admin").default(false).notNull(),

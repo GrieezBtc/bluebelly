@@ -242,10 +242,10 @@ function SupportInner() {
                 </p>
               ) : null}
               <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
-                {busy ? <Spinner /> : <Icon name="send" size={18} />} Send to Bemblo Support
+                {busy ? <Spinner /> : <Icon name="send" size={18} />} Send to BlueBelly Support
               </button>
               <p className="caption">
-                Never share your password. Bemblo Support will never ask for it.{" "}
+                Never share your password. BlueBelly Support will never ask for it.{" "}
                 <Link href="/legal/privacy" className="font-semibold text-brand">
                   How we handle your data
                 </Link>
@@ -294,7 +294,7 @@ function SupportInner() {
       ) : null}
 
       <p className="caption pt-5 pb-6">
-        Bemblo Support differentiates us from bigger platforms: every message is read by a person, and we answer in plain
+        BlueBelly Support differentiates us from bigger platforms: every message is read by a person, and we answer in plain
         language.
       </p>
     </div>

@@ -27,11 +27,11 @@ export async function GET(_request: Request, { params }: Ctx) {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: 56,
-          background: "linear-gradient(135deg, #6C4BF7 0%, #9a5cff 100%)",
+          background: "linear-gradient(135deg, #FF2FA0 0%, #7A2CFF 100%)",
           color: "#171329",
         }}
       >
-        <div style={{ display: "flex", color: "#ffffff", fontSize: 40, fontWeight: 800 }}>bemblo</div>
+        <div style={{ display: "flex", color: "#ffffff", fontSize: 40, fontWeight: 800 }}>BlueBelly</div>
         <div
           style={{
             display: "flex",
@@ -50,7 +50,7 @@ export async function GET(_request: Request, { params }: Ctx) {
           ) : null}
           <div style={{ display: "flex", fontSize: text.length > 120 ? 36 : 48, lineHeight: 1.3 }}>{headline}</div>
         </div>
-        <div style={{ display: "flex", color: "#ffffff", fontSize: 28 }}>Bemblo — Talk. Share. Connect.</div>
+        <div style={{ display: "flex", color: "#ffffff", fontSize: 28 }}>BlueBelly — Talk. Share. Connect.</div>
       </div>
     ),
     { width: 1200, height: 630, headers: { "Cache-Control": "public, max-age=300, s-maxage=300" } },

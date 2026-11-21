@@ -66,7 +66,7 @@ export function ProfileSetup({ initial }: { initial: Initial }) {
         messagePermission: permission,
         onboardingComplete: true,
       });
-      show({ title: "Profile ready", description: "Welcome to Bemblo.", tone: "success" });
+      show({ title: "Profile ready", description: "Welcome to BlueBelly.", tone: "success" });
       router.replace("/home");
       router.refresh();
     } catch (err) {
@@ -238,9 +238,9 @@ export function ProfileSetup({ initial }: { initial: Initial }) {
                 </button>
               ))}
             </div>
-            <InfoBanner tone="brand" icon="lock" title="Your privacy is enforced by Bemblo's servers">
+            <InfoBanner tone="brand" icon="lock" title="Your privacy is enforced by BlueBelly's servers">
               <p>
-                Audience rules, messaging permissions and message expiration are applied on our side, so they hold in any Bemblo
+                Audience rules, messaging permissions and message expiration are applied on our side, so they hold in any BlueBelly
                 app — browser, Android or iOS.
               </p>
             </InfoBanner>
@@ -272,7 +272,7 @@ export function ProfileSetup({ initial }: { initial: Initial }) {
         ) : (
           <button type="button" className="btn btn-primary flex-1" onClick={finish} disabled={busy}>
             {busy ? <Spinner /> : <Icon name="check" size={18} />}
-            Enter Bemblo
+            Enter BlueBelly
           </button>
         )}
       </footer>

@@ -11,7 +11,7 @@ const remotePatterns = [
 const nextConfig: NextConfig = {
   images: {
     // Runtime image optimisation is not guaranteed in every deployment target, so
-    // Bemblo ships responsive sizes + lazy loading from the source CDN instead.
+    // BlueBelly ships responsive sizes + lazy loading from the source CDN instead.
     unoptimized: true,
     remotePatterns,
   },

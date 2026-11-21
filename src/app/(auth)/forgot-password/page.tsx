@@ -7,7 +7,7 @@ export default function ForgotPasswordPage() {
     <div>
       <h1 className="h1">Reset your password</h1>
       <p className="body-sm pt-1 pb-6">
-        Enter the email on your Bemblo account and we will send you a link to choose a new password.
+        Enter the email on your BlueBelly account and we will send you a link to choose a new password.
       </p>
       <ForgotPasswordForm />
     </div>

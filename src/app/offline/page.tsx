@@ -15,7 +15,7 @@ export default function OfflinePage() {
         </span>
         <h1 className="h1 pt-3">No connection</h1>
         <p className="body-sm pt-1">
-          Bemblo needs a connection for messages and Moments. We will load everything as soon as you are back online — nothing is
+          BlueBelly needs a connection for messages and Moments. We will load everything as soon as you are back online — nothing is
           lost.
         </p>
         <Link href="/home" className="btn btn-primary btn-block mt-5">

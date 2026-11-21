@@ -183,7 +183,7 @@ function ProfileInner() {
             />
           </div>
           <div className="pt-3">
-            <InfoBanner tone="info" icon="shield-check" title="How Bemblo handles private accounts">
+            <InfoBanner tone="info" icon="shield-check" title="How BlueBelly handles private accounts">
               <ul className="list-disc space-y-1 pl-4">
                 <li>Follower requests need approval before any content becomes visible.</li>
                 <li>Messaging permissions are separate — you may still be able to message.</li>

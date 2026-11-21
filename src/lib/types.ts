@@ -1,5 +1,5 @@
 /**
- * Shared API contracts. These types are the boundary between the Bemblo backend
+ * Shared API contracts. These types are the boundary between the BlueBelly backend
  * and any client (web PWA today, native Android/iOS later).
  */
 import type {
@@ -28,7 +28,7 @@ export type PublicUser = {
   avatarUrl: string | null;
   accent: string;
   verified: boolean;
-  /** Bemblo's official account (announcements). Optional so older payloads still type-check. */
+  /** BlueBelly's official account (announcements). Optional so older payloads still type-check. */
   official?: boolean;
   profilePrivacy: ProfilePrivacy;
 };

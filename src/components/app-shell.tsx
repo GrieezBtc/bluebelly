@@ -52,11 +52,11 @@ export function BrandHeaderActions({ onOpenSearch }: { onOpenSearch?: () => void
   return (
     <div className="flex items-center gap-1">
       {onOpenSearch ? (
-        <button type="button" className="btn-icon" onClick={onOpenSearch} aria-label="Search Bemblo">
+        <button type="button" className="btn-icon" onClick={onOpenSearch} aria-label="Search BlueBelly">
           <Icon name="search" />
         </button>
       ) : (
-        <Link href="/search" className="btn-icon" aria-label="Search Bemblo">
+        <Link href="/search" className="btn-icon" aria-label="Search BlueBelly">
           <Icon name="search" />
         </Link>
       )}
@@ -89,7 +89,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile header */}
       {isMainTab ? (
         <header className="sticky-top flex items-center justify-between gap-3 px-4 py-3 md:hidden">
-          <Link href="/home" aria-label="Bemblo home">
+          <Link href="/home" aria-label="BlueBelly home">
             <BrandMark size={30} />
           </Link>
           {pathname === "/home" ? <BrandHeaderActions /> : null}
@@ -100,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Desktop / tablet sidebar */}
         <aside className="hidden md:block">
           <div className="sticky top-0 flex h-dvh flex-col gap-4 py-5">
-            <Link href="/home" className="px-1" aria-label="Bemblo home">
+            <Link href="/home" className="px-1" aria-label="BlueBelly home">
               <BrandMark size={34} />
             </Link>
             <nav className="flex flex-col gap-1" aria-label="Main navigation">
@@ -140,7 +140,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="mt-auto flex flex-col gap-2">
               {available ? (
                 <button type="button" className="btn btn-secondary btn-sm" onClick={install}>
-                  <Icon name="install" size={16} /> Install Bemblo
+                  <Icon name="install" size={16} /> Install BlueBelly
                 </button>
               ) : null}
               {user ? (
@@ -180,7 +180,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Icon name="install" size={20} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">Install Bemblo</p>
+              <p className="text-sm font-semibold">Install BlueBelly</p>
               <p className="caption">Full-screen, faster launch and notifications. Works offline for the shell.</p>
               <div className="flex gap-2 pt-2">
                 <button type="button" className="btn btn-primary btn-sm" onClick={install}>

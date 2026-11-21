@@ -108,7 +108,7 @@ export function ProfileMenu({ open, onClose }: { open: boolean; onClose: () => v
         <footer className="safe-bottom flex flex-col gap-2 border-t border-[color:var(--line)] p-4">
           {available ? (
             <button type="button" className="btn btn-secondary" onClick={install}>
-              <Icon name="install" size={16} /> Install Bemblo
+              <Icon name="install" size={16} /> Install BlueBelly
             </button>
           ) : null}
           <button

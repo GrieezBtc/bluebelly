@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       {
         id: created.id,
         message:
-          "Report sent to Bemblo Safety. Our team reviews reports within 24 hours. We may contact you if we need more details.",
+          "Report sent to BlueBelly Safety. Our team reviews reports within 24 hours. We may contact you if we need more details.",
       },
       201,
     );

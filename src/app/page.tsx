@@ -25,7 +25,7 @@ const PILLARS = [
   {
     icon: "help" as const,
     title: "Support that answers",
-    body: "Real people reply, usually in under four hours. Safety reports are reviewed within a day, and you can follow the official Bemblo account for updates.",
+    body: "Real people reply, usually in under four hours. Safety reports are reviewed within a day, and you can follow the official BlueBelly account for updates.",
   },
 ];
 
@@ -48,7 +48,7 @@ const STEPS = [
   },
   {
     title: "Stay in the loop",
-    body: "Get notifications for messages, replies and activity, and follow the official Bemblo account for announcements and upcoming updates.",
+    body: "Get notifications for messages, replies and activity, and follow the official BlueBelly account for announcements and upcoming updates.",
   },
   {
     title: "Get help when you need it",
@@ -79,11 +79,11 @@ export default async function LandingPage() {
           <section className="mx-auto max-w-3xl py-8 lg:py-14">
             <div className="rise-in">
               <span className="badge badge-onlyme">
-                <span className="badge-dot" /> New · Bemblo 1.0
+                <span className="badge-dot" /> New · BlueBelly 1.0
               </span>
               <h1 className="display pt-4 balance">
-                Bemblo —{" "}
-                <span className="bg-gradient-to-r from-brand via-[#9a5cff] to-mint bg-clip-text text-transparent">
+                BlueBelly —{" "}
+                <span className="bg-gradient-to-r from-brand via-[#b02ce0] to-[#6d28d9] bg-clip-text text-transparent">
                   Talk. Share. Connect.
                 </span>
               </h1>
@@ -128,7 +128,7 @@ export default async function LandingPage() {
 
           <section className="py-6" aria-labelledby="how-it-works">
             <h2 className="h2" id="how-it-works">
-              How Bemblo works
+              How BlueBelly works
             </h2>
             <ol className="grid gap-3 pt-4 sm:grid-cols-2">
               {STEPS.map((step, index) => (
@@ -149,7 +149,7 @@ export default async function LandingPage() {
             <h2 className="h2">Who sees what — in plain language</h2>
             <div className="grid gap-4 pt-4 sm:grid-cols-3">
               {[
-                { title: "Public", body: "Anyone on Bemblo can view the profile and Public Moments.", tone: "public" as const, icon: "globe" as const },
+                { title: "Public", body: "Anyone on BlueBelly can view the profile and Public Moments.", tone: "public" as const, icon: "globe" as const },
                 { title: "Followers", body: "Only people whose follow request you approved.", tone: "followers" as const, icon: "users" as const },
                 { title: "Only Me", body: "Only you — permanently, unless you change it yourself.", tone: "onlyme" as const, icon: "lock" as const },
               ].map((item) => (
@@ -162,7 +162,7 @@ export default async function LandingPage() {
               ))}
             </div>
             <p className="caption pt-4">
-              Disappearing messages remove content from Bemblo on the schedule you choose. They cannot prevent screenshots, screen
+              Disappearing messages remove content from BlueBelly on the schedule you choose. They cannot prevent screenshots, screen
               recording or someone photographing a screen, and we will never claim otherwise.
             </p>
           </section>
@@ -178,7 +178,7 @@ export default async function LandingPage() {
               <Link href="/support">Help &amp; Support</Link>
             </nav>
           </div>
-          <p className="caption pt-4">Bemblo — Talk. Share. Connect.</p>
+          <p className="caption pt-4">BlueBelly — Talk. Share. Connect.</p>
         </footer>
       </div>
     </PublicProviders>

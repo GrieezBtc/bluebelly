@@ -73,14 +73,14 @@ export const EXPIRY_COPY = {
   group: "Disappears after sending",
   maxRetention: "Unviewed messages are removed after 30 days",
   honestNote:
-    "When disappearing messages are on, Bemblo removes messages on the schedule chosen for the chat. This cannot prevent screenshots or screen recording on other people's devices.",
+    "When disappearing messages are on, BlueBelly removes messages on the schedule chosen for the chat. This cannot prevent screenshots or screen recording on other people's devices.",
 };
 
 export const AUDIENCE_COPY: Record<MomentAudience, { label: string; short: string; description: string; icon: string }> = {
   public: {
     label: "Public",
     short: "Public",
-    description: "Anyone on Bemblo can see this Moment, including people who do not follow you.",
+    description: "Anyone on BlueBelly can see this Moment, including people who do not follow you.",
     icon: "globe",
   },
   followers: {
@@ -178,7 +178,7 @@ export function canMessage(
   target: { id: number; messagePermission: MessagePermission; isOfficial?: boolean },
   relation: Relation,
 ): { allowed: boolean; reason: "allowed" | "nobody" | "followers" | "following" | "blocked" | "blocked_by" | "official"; shouldRequest: boolean } {
-  // The official Bemblo account is announcements-only: it can be followed, never messaged.
+  // The official BlueBelly account is announcements-only: it can be followed, never messaged.
   if (target.isOfficial) return { allowed: false, reason: "official", shouldRequest: false };
   if (relation.viewerBlockedTarget) return { allowed: false, reason: "blocked", shouldRequest: false };
   if (relation.targetBlockedViewer) return { allowed: false, reason: "blocked_by", shouldRequest: false };
@@ -202,7 +202,7 @@ export function canMessage(
 }
 
 export const MESSAGE_PERMISSION_COPY: Record<MessagePermission, { label: string; description: string }> = {
-  everyone: { label: "Everyone", description: "Any Bemblo account can start a conversation with you. Strangers arrive as Message Requests." },
+  everyone: { label: "Everyone", description: "Any BlueBelly account can start a conversation with you. Strangers arrive as Message Requests." },
   followers: { label: "People who follow me", description: "Only approved followers can start a chat. Others are turned away." },
   following: { label: "People I follow", description: "Only people you follow can start a chat with you." },
   nobody: { label: "Nobody", description: "No one can start a private chat with you. Existing conversations keep working." },
@@ -211,7 +211,7 @@ export const MESSAGE_PERMISSION_COPY: Record<MessagePermission, { label: string;
 export function messagePermissionBlockCopy(reason: string, name: string): string {
   switch (reason) {
     case "official":
-      return `${name} is Bemblo's official account and is for announcements only. For help, use Help & Support.`;
+      return `${name} is BlueBelly's official account and is for announcements only. For help, use Help & Support.`;
     case "nobody":
       return `${name} is not accepting messages right now.`;
     case "followers":

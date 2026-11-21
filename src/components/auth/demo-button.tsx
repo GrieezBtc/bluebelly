@@ -20,7 +20,7 @@ export function DemoButton({ label = "Explore the demo", block }: { label?: stri
         setBusy(true);
         try {
           await api.post("/api/demo");
-          show({ title: "Welcome to Bemblo", description: "You are signed in as @ava.rivera.", tone: "success" });
+          show({ title: "Welcome to BlueBelly", description: "You are signed in as @ava.rivera.", tone: "success" });
           router.replace("/home");
         } catch (error) {
           show({

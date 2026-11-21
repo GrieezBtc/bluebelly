@@ -13,8 +13,8 @@ export default function VerifyRequiredPage() {
       <div className="text-center">
         <h1 className="h1">Verify your email to continue</h1>
         <p className="body-sm pt-2">
-          Your Bemblo account has been created, but you need to verify your email
-          address before you can enter Bemblo.
+          Your BlueBelly account has been created, but you need to verify your email
+          address before you can enter BlueBelly.
         </p>
       </div>
 
@@ -43,7 +43,7 @@ export default function VerifyRequiredPage() {
       </div>
 
       <p className="caption text-center">
-        You must verify the email address before accessing your Bemblo account.
+        You must verify the email address before accessing your BlueBelly account.
       </p>
     </div>
   );

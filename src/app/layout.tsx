@@ -1,20 +1,23 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+
+const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-jakarta", display: "swap" });
 
 export const metadata: Metadata = {
   title: {
-    default: "Bemblo — Talk. Share. Connect.",
-    template: "%s · Bemblo",
+    default: "BlueBelly — Talk. Share. Connect.",
+    template: "%s · BlueBelly",
   },
   description:
-    "Bemblo brings private conversations and lasting Moments together. Talk, share and connect in one clean social app where you control who sees what and how long messages stay.",
-  applicationName: "Bemblo",
+    "BlueBelly brings private conversations and lasting Moments together. Talk, share and connect in one clean social app where you control who sees what and how long messages stay.",
+  applicationName: "BlueBelly",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Bemblo",
-    statusBarStyle: "default",
+    title: "BlueBelly",
+    statusBarStyle: "black-translucent",
   },
   icons: {
     icon: [{ url: "/icons/bemblo-icon.png", sizes: "512x512", type: "image/png" }],
@@ -22,7 +25,7 @@ export const metadata: Metadata = {
   },
   formatDetection: { telephone: false },
   openGraph: {
-    title: "Bemblo — Talk. Share. Connect.",
+    title: "BlueBelly — Talk. Share. Connect.",
     description: "Private conversations. Lasting Moments. You are in control.",
     type: "website",
   },
@@ -34,14 +37,13 @@ export const viewport: Viewport = {
   maximumScale: 5,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f4fb" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0a16" },
+    { color: "#12041f" },
   ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${jakarta.variable} dark`} suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

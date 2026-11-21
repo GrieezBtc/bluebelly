@@ -14,7 +14,7 @@ export function generateStaticParams() {
   return Object.keys(DOCS).map((doc) => ({ doc }));
 }
 
-export const metadata = { title: "Bemblo legal" };
+export const metadata = { title: "BlueBelly legal" };
 
 export default async function LegalDocPage({ params }: { params: Promise<{ doc: string }> }) {
   const { doc } = await params;
@@ -36,7 +36,7 @@ export default async function LegalDocPage({ params }: { params: Promise<{ doc: 
           </Link>
         </header>
 
-        <p className="eyebrow">Bemblo legal</p>
+        <p className="eyebrow">BlueBelly legal</p>
         <h1 className="h1 pt-1">{content.title}</h1>
         <p className="caption pt-1">{content.updated}</p>
 
@@ -62,7 +62,7 @@ export default async function LegalDocPage({ params }: { params: Promise<{ doc: 
           </Link>
         </nav>
         <p className="caption">
-          Questions about this document? Contact Bemblo Support and choose Privacy &amp; security — average first reply is under
+          Questions about this document? Contact BlueBelly Support and choose Privacy &amp; security — average first reply is under
           four hours.
         </p>
       </div>

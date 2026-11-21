@@ -55,7 +55,7 @@ export async function demoSeeded() {
   return rows.length > 0;
 }
 
-/** Seeds a realistic Bemblo world so the product can be explored immediately. */
+/** Seeds a realistic BlueBelly world so the product can be explored immediately. */
 export async function seedDemoData() {
   if (await demoSeeded()) return { seeded: false };
   const password = hashPassword(DEMO_PASSWORD);
@@ -67,9 +67,9 @@ export async function seedDemoData() {
       {
         ...base,
         username: "bemblo",
-        name: "Bemblo Team",
+        name: "BlueBelly Team",
         email: "team@bemblo.app",
-        bio: "Official Bemblo account. Talk. Share. Connect. We reply to every support message.",
+        bio: "Official BlueBelly account. Talk. Share. Connect. We reply to every support message.",
         avatarUrl: IMG.avatarBemblo,
         accent: "violet",
         verified: true,
@@ -193,7 +193,7 @@ export async function seedDemoData() {
       {
         authorId: id("bemblo"),
         kind: "photo",
-        body: "Bemblo 1.0 is here. Conversations stay temporary, Moments stay yours. Talk. Share. Connect.",
+        body: "BlueBelly 1.0 is here. Conversations stay temporary, Moments stay yours. Talk. Share. Connect.",
         mediaUrl: IMG.crossing,
         mediaWidth: 1200,
         mediaHeight: 627,
@@ -308,8 +308,8 @@ export async function seedDemoData() {
     { momentId: momentByBody("Golden hour"), userId: id("ava.rivera"), createdAt: hours(8) },
     { momentId: momentByBody("Ten seconds"), userId: id("ava.rivera"), createdAt: hours(4) },
     { momentId: momentByBody("Two hours in the kiln"), userId: id("ava.rivera"), createdAt: hours(29) },
-    { momentId: momentByBody("Bemblo 1.0"), userId: id("ava.rivera"), createdAt: days(3) },
-    { momentId: momentByBody("Bemblo 1.0"), userId: id("maya.lens"), createdAt: days(3) },
+    { momentId: momentByBody("BlueBelly 1.0"), userId: id("ava.rivera"), createdAt: days(3) },
+    { momentId: momentByBody("BlueBelly 1.0"), userId: id("maya.lens"), createdAt: days(3) },
   ]);
 
   await db.insert(momentComments).values([
@@ -474,7 +474,7 @@ export async function seedDemoData() {
     { userId: id("ava.rivera"), type: "follow", actorId: id("priya.s"), entityType: "user", entityId: id("priya.s"), preview: "Started following you", createdAt: days(2) },
     { userId: id("ava.rivera"), type: "message", actorId: id("maya.lens"), entityType: "conversation", entityId: direct.id, preview: "Are you still up for the print swap on the weekend?", createdAt: minutes(12) },
     { userId: id("ava.rivera"), type: "message_request", actorId: id("tomas.k"), entityType: "conversation", entityId: request.id, preview: "Sent you a message request", createdAt: hours(2) },
-    { userId: id("ava.rivera"), type: "system", preview: "Welcome to your Bemblo demo. Switch profile privacy in Settings to see audience rules in action.", createdAt: minutes(1) },
+    { userId: id("ava.rivera"), type: "system", preview: "Welcome to your BlueBelly demo. Switch profile privacy in Settings to see audience rules in action.", createdAt: minutes(1) },
   ]);
 
   return { seeded: true };

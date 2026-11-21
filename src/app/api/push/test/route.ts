@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const rows = await db.select({ id: pushSubscriptions.id }).from(pushSubscriptions).where(eq(pushSubscriptions.userId, user.id));
     if (rows.length) {
       await sendPushToUser(user.id, {
-        title: "Bemblo",
+        title: "BlueBelly",
         body: "Notifications are working on this device.",
         url: "/notifications",
         tag: "bemblo-test",

@@ -20,7 +20,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         </span>
         <h1 className="h1 pt-3">Something went wrong</h1>
         <p className="body-sm pt-1">
-          This one is on us. Your messages and Moments are safe. Try again, and if it keeps happening contact Bemblo Support.
+          This one is on us. Your messages and Moments are safe. Try again, and if it keeps happening contact BlueBelly Support.
         </p>
         <div className="flex flex-col gap-2 pt-5 sm:flex-row sm:justify-center">
           <button type="button" className="btn btn-primary" onClick={reset}>

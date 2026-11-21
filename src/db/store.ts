@@ -728,7 +728,7 @@ function notificationCopy(type: NotificationView["type"], actorName: string, pre
     case "follow_accepted":
       return { title: actorName, body: "Approved your follow request" };
     default:
-      return { title: "Bemblo", body: preview || "You have new activity." };
+      return { title: "BlueBelly", body: preview || "You have new activity." };
   }
 }
 
@@ -771,7 +771,7 @@ async function deliverNotification(
       .returning({ email: users.email });
     if (claimed[0]) {
       const base = (process.env.BEMBLO_PUBLIC_URL ?? "").replace(/\/$/, "");
-      await sendNotificationEmail({ to: claimed[0].email, title: copy.title === "Bemblo" ? "New activity on Bemblo" : `${copy.title} on Bemblo`, body: copy.body, url: `${base}${path}` });
+      await sendNotificationEmail({ to: claimed[0].email, title: copy.title === "BlueBelly" ? "New activity on BlueBelly" : `${copy.title} on BlueBelly`, body: copy.body, url: `${base}${path}` });
     }
   }
 }
@@ -1882,7 +1882,7 @@ export async function userSummaryList(
 ): Promise<UserSummary[]> {
   let ids: number[] = [];
   if (kind === "official") {
-    // Official accounts the viewer is not following yet (drives the "Follow Bemblo" card).
+    // Official accounts the viewer is not following yet (drives the "Follow BlueBelly" card).
     const following = await acceptedFollowingIds(viewer.id);
     const { blockedIds } = await viewerExclusions(viewer.id);
     const rows = await db
@@ -1894,7 +1894,7 @@ export async function userSummaryList(
   } else if (kind === "suggestions") {
     const following = await acceptedFollowingIds(viewer.id);
     const { blockedIds } = await viewerExclusions(viewer.id);
-    // The official Bemblo account is always suggested first until the viewer follows it.
+    // The official BlueBelly account is always suggested first until the viewer follows it.
     const officialRows = await db
       .select({ id: users.id })
       .from(users)
