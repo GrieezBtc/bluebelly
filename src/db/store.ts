@@ -1130,7 +1130,8 @@ export async function listConversations(
         deletedAt: messages.deletedAt,
       })
       .from(messages)
-      .where(and(inArray(messages.conversationId, ids), or(isNull(messages.expiresAt), gt(messages.expiresAt, now))))
+      // Deleted messages vanish without a trace, so they never show up as the latest message.
+      .where(and(inArray(messages.conversationId, ids), isNull(messages.deletedAt), or(isNull(messages.expiresAt), gt(messages.expiresAt, now))))
       .orderBy(desc(messages.createdAt)),
     db
       .select({ conversationId: messages.conversationId, c: sql<number>`count(*)::int` })
@@ -1144,6 +1145,7 @@ export async function listConversations(
           inArray(messages.conversationId, ids),
           ne(messages.senderId, viewer.id),
           eq(messages.isSystem, false),
+          isNull(messages.deletedAt),
           or(isNull(conversationMembers.lastReadAt), gt(messages.createdAt, conversationMembers.lastReadAt)),
           or(isNull(messages.expiresAt), gt(messages.expiresAt, now)),
         ),
@@ -1160,9 +1162,7 @@ export async function listConversations(
     const others = members.filter((u) => u.id !== viewer.id);
     const last = lastMap.get(m.conversationId);
     const preview = last
-      ? last.deletedAt
-        ? "Message deleted"
-        : last.isSystem
+      ? last.isSystem
         ? last.body
         : last.kind === "text"
           ? last.body
@@ -1243,6 +1243,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
     .where(
       and(
         eq(messages.conversationId, conversationId),
+        isNull(messages.deletedAt),
         isNull(messages.expiredAt),
         or(isNull(messages.expiresAt), gt(messages.expiresAt, now)),
       ),
@@ -1316,7 +1317,8 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       expiresLabel: label,
       notViewedYet: deleted ? false : notViewedYet,
       expired: false,
-      editedAt: m.editedAt ? m.editedAt.toISOString() : null,
+      // Edits are silent: the new text simply replaces the old, with no "edited" marker.
+      editedAt: null,
       deleted,
       deletedBy: deleted ? (m.deletedById === m.senderId ? "sender" : "admin") : null,
       canEdit: !deleted && !m.isSystem && isMine && (m.kind === "text" || m.kind === "image" || m.kind === "video"),

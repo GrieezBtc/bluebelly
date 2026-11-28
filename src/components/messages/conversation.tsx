@@ -1211,19 +1211,8 @@ function MessageBubble({
     );
   }
 
-  if (message.deleted) {
-    return (
-      <li className={cn("flex items-end gap-2", message.isMine ? "justify-end" : "justify-start")}>
-        <p className="bubble bubble-system italic">
-          {message.deletedBy === "admin"
-            ? "A group admin deleted this message"
-            : message.isMine
-              ? "You deleted this message"
-              : `${message.sender?.name ?? "Someone"} deleted this message`}
-        </p>
-      </li>
-    );
-  }
+  // Deleted messages simply disappear; nobody is told one was removed.
+  if (message.deleted) return null;
 
   const countdown = message.expiresAt ? timeLeftLabel(message.expiresAt) : null;
   const expiredSoon = message.expiresAt ? new Date(message.expiresAt).getTime() - now < 60 * 60 * 1000 : false;
@@ -1321,7 +1310,6 @@ function MessageBubble({
 
         <div className="bubble-meta">
           <span>{formatClock(message.createdAt)}</span>
-          {message.editedAt ? <span className="italic">edited</span> : null}
           {message.isMine ? (
             <span className="flex items-center gap-1" title={message.status === "viewed" ? "Seen" : "Sent"}>
               <Icon name={message.status === "viewed" ? "check-double" : "check"} size={13} />
