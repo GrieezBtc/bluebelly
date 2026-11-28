@@ -163,7 +163,7 @@ export const LEGAL_DOCS = {
       },
       {
         heading: "6. Notifications",
-        body: "BlueBelly sends in-app notifications for activity such as messages, replies, comments, likes and follows. If you allow it, we also send push notifications to your device; you can withdraw permission at any time in your browser or device settings, or in BlueBelly's notification settings. We may send email notifications when you are away (at most one every 15 minutes) as well as account, verification and security emails. You can change these preferences in Settings, but we may still email you about your account's security.",
+        body: "BlueBelly sends in-app notifications for activity such as messages, replies, comments, likes and follows. If you allow it, we also send push notifications to your device; you can withdraw permission at any time in your browser or device settings, or in BlueBelly's notification settings. We do not send emails about activity such as messages, likes, comments or follows. We only email you for account, verification and security purposes, and you can change your notification preferences in Settings.",
       },
       {
         heading: "7. Who we share information with",
@@ -291,7 +291,6 @@ export const LEGAL_DOCS = {
 
 export const NOTIFICATION_PREF_COPY = [
   { id: "push", label: "Push notifications", blurb: "Alerts on this device while BlueBelly runs in the background." },
-  { id: "email", label: "Email notifications", blurb: "Emails for new messages, comments and follows when you are away (at most one every 15 minutes), plus account and security emails." },
   { id: "messages", label: "Message notifications", blurb: "New messages, message requests and views." },
   { id: "social", label: "Social notifications", blurb: "Likes, comments and mentions on your Moments." },
   { id: "requests", label: "Follow activity", blurb: "New followers, follow requests and approvals." },

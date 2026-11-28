@@ -59,7 +59,6 @@ import { timeLeftLabel } from "@/lib/utils";
 import { sendPushToUser } from "@/lib/push";
 import { isAdminUser } from "@/lib/admin";
 import { generateShareCode, isValidShareCode } from "@/lib/share";
-import { sendNotificationEmail } from "@/lib/email";
 import { commentReactionInfo, isCommentReaction, normalizeEmoji, type CommentReaction } from "@/lib/reactions";
 import type { AuthUser } from "@/lib/auth";
 
@@ -813,8 +812,6 @@ function notificationPath(input: { entityType?: string | null; entityId?: number
   return "/notifications";
 }
 
-const EMAIL_COOLDOWN_MINUTES = 15;
-
 async function deliverNotification(
   input: { userId: number; type: NotificationView["type"]; actorId?: number | null; entityType?: string | null; entityId?: number | null; preview?: string | null },
   prefs: NotificationPrefs,
@@ -828,25 +825,8 @@ async function deliverNotification(
   if (prefs.push) {
     await sendPushToUser(input.userId, { ...copy, url: path, tag: `${input.type}-${input.entityType ?? "x"}-${input.entityId ?? 0}` });
   }
-
-  // Email: skip likes (too noisy) and rate-limit to one email per cooldown window.
-  if (prefs.email && input.type !== "like") {
-    const claimed = await db
-      .update(users)
-      .set({ lastEmailNotifiedAt: new Date() })
-      .where(
-        and(
-          eq(users.id, input.userId),
-          sql`${users.emailVerifiedAt} is not null`,
-          sql`(${users.lastEmailNotifiedAt} is null or ${users.lastEmailNotifiedAt} < now() - interval '${sql.raw(String(EMAIL_COOLDOWN_MINUTES))} minutes')`,
-        ),
-      )
-      .returning({ email: users.email });
-    if (claimed[0]) {
-      const base = (process.env.BEMBLO_PUBLIC_URL ?? "").replace(/\/$/, "");
-      await sendNotificationEmail({ to: claimed[0].email, title: copy.title === "BlueBelly" ? "New activity on BlueBelly" : `${copy.title} on BlueBelly`, body: copy.body, url: `${base}${path}` });
-    }
-  }
+  // Activity alerts (messages, likes, comments, reactions, follows) are never emailed: they arrive in the app and as
+  // push notifications only. Email is reserved for account, verification and security messages.
 }
 
 export async function listNotifications(viewer: AuthUser): Promise<NotificationView[]> {
