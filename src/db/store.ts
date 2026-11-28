@@ -819,7 +819,11 @@ async function deliverNotification(
   const [actor] = input.actorId
     ? await db.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, input.actorId)).limit(1)
     : [];
-  const copy = notificationCopy(input.type, actor?.name ?? "Someone", input.preview ?? null);
+  const isChatMessage =
+    input.entityType === "conversation" && (input.type === "message" || input.type === "message_request" || input.type === "reply");
+  const copy = isChatMessage
+    ? { title: `${input.preview ?? "New message"} from ${actor?.name ?? "someone"}`, body: "Open BlueBelly to view it." }
+    : notificationCopy(input.type, actor?.name ?? "Someone", input.preview ?? null);
   const path = notificationPath(input, actor?.username ?? null);
 
   if (prefs.push) {
@@ -1495,8 +1499,8 @@ export async function sendMessage(
     .select({ userId: conversationMembers.userId, state: conversationMembers.state })
     .from(conversationMembers)
     .where(and(eq(conversationMembers.conversationId, conversationId), ne(conversationMembers.userId, viewer.id)));
-  const summary =
-    input.kind === "text" ? (input.body ?? "").slice(0, 90) : `Sent you a ${input.kind === "voice" ? "voice message" : input.kind}`;
+  // Alerts never carry the message itself, so a later edit or delete leaves nothing behind on anyone's phone.
+  const summary = `New ${input.kind === "text" ? "Text" : input.kind === "voice" ? "Audio" : "Media"} message`;
   for (const other of others) {
     // In a group, the person whose message was replied to gets a dedicated "reply" notification
     // (instead of the generic one) so they know it was aimed at them.
@@ -1508,7 +1512,7 @@ export async function sendMessage(
       actorId: viewer.id,
       entityType: "conversation",
       entityId: conversationId,
-      preview: isRepliedTo ? `Replied to you: ${summary}` : summary,
+      preview: summary,
     });
   }
 
@@ -1611,7 +1615,7 @@ function reactionTargetLabel(message: { kind: MessageView["kind"]; body: string 
   if (message.kind === "voice") return "your voice message";
   if (message.kind === "image") return "your photo";
   if (message.kind === "video") return "your video";
-  return `your message: ${message.body.slice(0, 70)}`;
+  return "your message";
 }
 
 /** Set, change or (emoji null / the same emoji) remove the viewer's reaction. Any emoji is allowed. */
