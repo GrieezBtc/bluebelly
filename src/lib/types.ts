@@ -75,6 +75,8 @@ export type MomentView = {
   mediaHeight: number | null;
   audience: MomentAudience;
   audienceLocked: boolean;
+  /** Set when the author edited the caption after publishing. */
+  editedAt: string | null;
   createdAt: string;
   author: MomentAuthor;
   likeCount: number;
@@ -95,6 +97,10 @@ export type CommentView = {
   /** Reaction totals (only reactions that exist) and the viewer's own, if any. */
   reactions: { reaction: CommentReaction; count: number }[];
   myReaction: CommentReaction | null;
+  /** Always null: edits are silent. Kept so older clients keep working. */
+  editedAt: string | null;
+  /** The author, or the Moment's owner, may delete it. Nobody may edit it but the author. */
+  canDelete: boolean;
   /** Who/what this comment replies to, if it is a reply. */
   replyTo: { id: number; authorName: string; authorUsername: string; snippet: string } | null;
 };

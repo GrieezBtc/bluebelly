@@ -163,6 +163,8 @@ export const moments = pgTable(
     archived: boolean("archived").default(false).notNull(),
     // Short public share code used in links: /moment/p/<shareCode>
     shareCode: text("share_code"),
+    // Set when the author edits the caption after publishing.
+    editedAt: timestamp("edited_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
@@ -192,6 +194,7 @@ export const momentComments = pgTable(
     body: text("body").notNull(),
     // The comment this one replies to (null for top-level comments).
     parentCommentId: integer("parent_comment_id"),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("moment_comments_moment_idx").on(t.momentId)],

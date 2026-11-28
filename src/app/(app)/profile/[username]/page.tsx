@@ -22,7 +22,7 @@ import { FollowButton, MessageButton, UserOptionsMenu } from "@/components/socia
 import { api, useQuery } from "@/lib/client";
 import { useSession } from "@/components/providers";
 import { compactNumber } from "@/lib/utils";
-import type { PublicUser, RelationState, UserSummary } from "@/lib/types";
+import type { MomentView, PublicUser, RelationState, UserSummary } from "@/lib/types";
 
 type ProfilePayload = {
   profile: {
@@ -39,7 +39,7 @@ type ProfilePayload = {
     canViewFollowers: boolean;
     profilePrivacy: "public" | "private";
   };
-  moments: { id: number; kind: "text" | "photo" | "video"; body: string; mediaUrl: string | null; posterUrl: string | null; mediaWidth: number | null; mediaHeight: number | null; shareCode: string | null; audience: "public" | "followers" | "only_me"; audienceLocked: boolean; createdAt: string; author: PublicUser; likeCount: number; commentCount: number; shareCount: number; likedByMe: boolean; isMine: boolean; effectiveAudience: "public" | "followers" | "only_me" | "hidden" }[];
+  moments: MomentView[];
   followersPreview: { id: number; username: string; name: string; avatarUrl: string | null; accent: string; relation: RelationState }[];
   pendingRequests: UserSummary[];
 };

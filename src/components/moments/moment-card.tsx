@@ -50,6 +50,30 @@ export function MomentCard({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [overflow, setOverflow] = useState(false);
+  const [bodyText, setBodyText] = useState(moment.body);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editValue, setEditValue] = useState("");
+
+  useEffect(() => {
+    setBodyText(moment.body);
+  }, [moment.body]);
+
+  async function saveEdit() {
+    const text = editValue.trim();
+    if (moment.kind === "text" && !text) return;
+    setBusy(true);
+    try {
+      const result = await api.patch<{ moment: { body: string } }>(`/api/moments/${moment.id}`, { body: text });
+      setBodyText(result.moment.body);
+      onChanged?.({ body: result.moment.body });
+      setEditOpen(false);
+      show({ title: "Moment updated", tone: "success" });
+    } catch (error) {
+      show({ title: "Could not save", description: error instanceof Error ? error.message : undefined, tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     setLiked(moment.likedByMe);
@@ -104,8 +128,8 @@ export function MomentCard({
   }
 
   const audienceToShow = moment.effectiveAudience === "hidden" ? null : moment.effectiveAudience;
-  const truncated = moment.body.length > 420 && !overflow;
-  const shownBody = truncated ? `${moment.body.slice(0, 420)}…` : moment.body;
+  const truncated = bodyText.length > 420 && !overflow;
+  const shownBody = truncated ? `${bodyText.slice(0, 420)}…` : bodyText;
 
   return (
     <article className="card overflow-hidden p-0">
@@ -135,10 +159,10 @@ export function MomentCard({
         </button>
       </header>
 
-      {moment.body ? (
+      {bodyText ? (
         <div className="px-3.5 pb-3">
           <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">{shownBody}</p>
-          {moment.body.length > 420 ? (
+          {bodyText.length > 420 ? (
             <button type="button" className="pt-1 text-sm font-semibold text-brand" onClick={() => setOverflow((v) => !v)}>
               {overflow ? "Show less" : "Read more"}
             </button>
@@ -192,6 +216,18 @@ export function MomentCard({
         <div className="flex flex-col gap-1">
           {moment.isMine ? (
             <>
+              <button
+                type="button"
+                className="list-row rounded-md"
+                onClick={() => {
+                  setOptionsOpen(false);
+                  setEditValue(bodyText);
+                  setEditOpen(true);
+                }}
+              >
+                <Icon name="edit" size={20} />
+                <span className="flex-1 text-left text-sm font-semibold">Edit {moment.kind === "text" ? "post" : "caption"}</span>
+              </button>
               <button
                 type="button"
                 className="list-row rounded-md"
@@ -298,6 +334,32 @@ export function MomentCard({
         target={{ type: "moment", id: moment.id, label: `Moment by @${moment.author.username}` }}
       />
 
+      <Overlay open={editOpen} onClose={() => setEditOpen(false)} title={moment.kind === "text" ? "Edit post" : "Edit caption"} variant="dialog">
+        <Field label={moment.kind === "text" ? "Post" : "Caption"} htmlFor={`edit-moment-${moment.id}`}>
+          <textarea
+            id={`edit-moment-${moment.id}`}
+            className="input min-h-32"
+            maxLength={2000}
+            value={editValue}
+            onChange={(event) => setEditValue(event.target.value)}
+          />
+        </Field>
+        <p className="caption pt-2">Your photo or video stays the same.</p>
+        <div className="flex justify-end gap-2 pt-4">
+          <button type="button" className="btn btn-secondary" onClick={() => setEditOpen(false)} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy || (moment.kind === "text" && !editValue.trim()) || editValue.trim() === bodyText}
+            onClick={() => void saveEdit()}
+          >
+            {busy ? <Spinner /> : null} Save
+          </button>
+        </div>
+      </Overlay>
+
       <ConfirmDialog
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
@@ -328,7 +390,59 @@ export function MomentCard({
   );
 }
 
-function CommentRow({ momentId, comment, onReply }: { momentId: number; comment: CommentView; onReply: () => void }) {
+function CommentRow({
+  momentId,
+  comment,
+  onReply,
+  onEdited,
+  onDeleted,
+}: {
+  momentId: number;
+  comment: CommentView;
+  onReply: () => void;
+  onEdited: (patch: { id: number; body: string; editedAt: string | null }) => void;
+  onDeleted: (result: { commentId: number; commentCount: number }) => void;
+}) {
+  const { show } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(comment.body);
+  const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  async function save() {
+    const text = value.trim();
+    if (!text || text === comment.body) {
+      setEditing(false);
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api.post<{ id: number; body: string; editedAt: string | null }>(`/api/moments/${momentId}/engagement`, {
+        action: "edit-comment",
+        commentId: comment.id,
+        body: text,
+      });
+      onEdited(result);
+      setEditing(false);
+    } catch (error) {
+      show({ title: "Could not save", description: error instanceof Error ? error.message : undefined, tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    try {
+      const result = await api.post<{ commentId: number; commentCount: number }>(`/api/moments/${momentId}/engagement`, {
+        action: "delete-comment",
+        commentId: comment.id,
+      });
+      onDeleted(result);
+    } catch (error) {
+      show({ title: "Could not delete", description: error instanceof Error ? error.message : undefined, tone: "error" });
+    }
+  }
+
   // Swipe the comment sideways and let go to reply, the same gesture as in chats.
   const { dx, bind, progress } = useSwipeReply(comment.id > 0 ? onReply : undefined);
   return (
@@ -357,10 +471,62 @@ function CommentRow({ momentId, comment, onReply }: { momentId: number; comment:
               Replying to <span className="font-semibold">{comment.replyTo.authorName}</span>
             </p>
           ) : null}
-          <p className="body-sm whitespace-pre-wrap">{comment.body}</p>
+          {editing ? (
+            <div className="flex flex-col gap-2 pt-1">
+              <textarea
+                className="textarea"
+                rows={2}
+                maxLength={600}
+                value={value}
+                autoFocus
+                onChange={(event) => setValue(event.target.value)}
+                aria-label="Edit your comment"
+              />
+              <div className="flex justify-end gap-2">
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(false)} disabled={busy}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => void save()} disabled={busy || !value.trim()}>
+                  {busy ? <Spinner /> : null} Save
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="body-sm whitespace-pre-wrap">{comment.body}</p>
+          )}
           <CommentReactionBar momentId={momentId} comment={comment} onReply={onReply} />
+          {comment.id > 0 && !editing && (comment.isMine || comment.canDelete) ? (
+            <div className="caption mt-0.5 flex items-center gap-3">
+              {comment.isMine ? (
+                <button
+                  type="button"
+                  className="font-semibold hover:underline"
+                  onClick={() => {
+                    setValue(comment.body);
+                    setEditing(true);
+                  }}
+                >
+                  Edit
+                </button>
+              ) : null}
+              {comment.canDelete ? (
+                <button type="button" className="font-semibold text-coral hover:underline" onClick={() => setConfirmOpen(true)}>
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Delete this comment?"
+        description={comment.isMine ? "This cannot be undone. Replies to it will stay." : "This removes their comment for everyone. This cannot be undone."}
+        confirmLabel="Delete comment"
+        tone="danger"
+        onConfirm={remove}
+      />
     </li>
   );
 }
@@ -401,6 +567,8 @@ function CommentsSheet({
       isMine: true,
       reactions: [],
       myReaction: null,
+      editedAt: null,
+      canDelete: true,
       replyTo: replyTo
         ? { id: replyTo.id, authorName: replyTo.author.name, authorUsername: replyTo.author.username, snippet: replyTo.body.slice(0, 80) }
         : null,
@@ -461,6 +629,22 @@ function CommentsSheet({
                 onReply={() => {
                   setReplyTo(comment);
                   inputRef.current?.focus();
+                }}
+                onEdited={(patch) =>
+                  setData((current) => ({
+                    comments: (current?.comments ?? []).map((item) =>
+                      item.id === patch.id ? { ...item, body: patch.body, editedAt: patch.editedAt } : item,
+                    ),
+                  }))
+                }
+                onDeleted={(result) => {
+                  setData((current) => ({
+                    comments: (current?.comments ?? [])
+                      .filter((item) => item.id !== result.commentId)
+                      .map((item) => (item.replyTo?.id === result.commentId ? { ...item, replyTo: null } : item)),
+                  }));
+                  setReplyTo((current) => (current?.id === result.commentId ? null : current));
+                  onCountChange?.(result.commentCount);
                 }}
               />
             ))}

@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { mediaAssets, moments } from "@/db/schema";
-import { fail, forbidden, notFound, ok, pickEnum, readJson } from "@/lib/api";
+import { badRequest, fail, forbidden, notFound, ok, pickEnum, readJson } from "@/lib/api";
 import { requireVerifiedUser } from "@/lib/auth";
 import { getMoment, listComments } from "@/db/store";
 import { getCurrentUser } from "@/lib/auth";
@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: Params) {
   }
 }
 
-/** PATCH /api/moments/:id — change the audience of your own Moment. */
+/** PATCH /api/moments/:id — edit the caption and/or change the audience of your own Moment. */
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
@@ -36,22 +36,43 @@ export async function PATCH(request: Request, { params }: Params) {
     const user = await requireVerifiedUser(request);
     const [moment] = await db.select().from(moments).where(eq(moments.id, momentId)).limit(1);
     if (!moment) throw notFound("Moment not found.");
-    if (moment.authorId !== user.id) throw forbidden("Only the author can change this Moment's audience.");
-    const body = await readJson<{ audience?: string }>(request);
-    const audience = pickEnum<MomentAudience>(body.audience, ["public", "followers", "only_me"], "public");
-    const [updated] = await db
-      .update(moments)
-      .set({ audience, audienceLocked: audience === "only_me" })
-      .where(eq(moments.id, momentId))
-      .returning();
+    if (moment.authorId !== user.id) throw forbidden("Only the author can change this Moment.");
+    const body = await readJson<{ audience?: string; body?: string }>(request);
+
+    const changes: Partial<{ audience: MomentAudience; audienceLocked: boolean; body: string; editedAt: Date }> = {};
+    let captionChanged = false;
+    if (body.body !== undefined) {
+      if (typeof body.body !== "string") throw badRequest("Write the new text first.");
+      const text = body.body.trim();
+      if (text.length > 2000) throw badRequest("Please keep this under 2000 characters.");
+      if (moment.kind === "text" && text.length === 0) throw badRequest("A text Moment cannot be empty. Delete it instead.");
+      if (text !== moment.body) {
+        changes.body = text;
+        changes.editedAt = new Date();
+        captionChanged = true;
+      }
+    }
+    if (body.audience !== undefined) {
+      const audience = pickEnum<MomentAudience>(body.audience, ["public", "followers", "only_me"], "public");
+      changes.audience = audience;
+      changes.audienceLocked = audience === "only_me";
+    }
+
+    const [updated] = Object.keys(changes).length
+      ? await db.update(moments).set(changes).where(eq(moments.id, momentId)).returning()
+      : [moment];
+    const audience = updated.audience;
     return ok({
       moment: {
         id: updated.id,
         audience: updated.audience,
         audienceLocked: updated.audienceLocked,
+        body: updated.body,
+        editedAt: null,
       },
-      message:
-        audience === "only_me"
+      message: captionChanged
+        ? "Moment updated."
+        : audience === "only_me"
           ? "This Moment is now Only Me. It will stay private until you change it yourself."
           : `Audience updated to ${audience === "public" ? "Public" : "Followers"}.`,
     });

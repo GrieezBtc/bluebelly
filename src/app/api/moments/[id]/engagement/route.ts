@@ -1,6 +1,6 @@
-import { badRequest, fail, notFound, ok, readJson, requireString } from "@/lib/api";
+import { badRequest, fail, forbidden, notFound, ok, readJson, requireString } from "@/lib/api";
 import { requireVerifiedUser } from "@/lib/auth";
-import { addComment, getMoment, listComments, reactToComment, shareMoment, toggleLike } from "@/db/store";
+import { addComment, deleteComment, editComment, getMoment, listComments, reactToComment, shareMoment, toggleLike } from "@/db/store";
 import { isCommentReaction } from "@/lib/reactions";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -52,6 +52,22 @@ export async function POST(request: Request, { params }: Params) {
           return ok(await reactToComment(user, momentId, body.commentId, reaction));
         } catch (error) {
           if (error instanceof Error && error.message === "not_found") throw notFound("That comment is no longer available.");
+          throw error;
+        }
+      }
+      case "edit-comment":
+      case "delete-comment": {
+        if (typeof body.commentId !== "number" || !Number.isInteger(body.commentId)) throw notFound("That comment is no longer available.");
+        try {
+          if (body.action === "edit-comment") return ok(await editComment(user, momentId, body.commentId, typeof body.body === "string" ? body.body : ""));
+          return ok(await deleteComment(user, momentId, body.commentId));
+        } catch (error) {
+          if (error instanceof Error) {
+            if (error.message === "not_found") throw notFound("That comment is no longer available.");
+            if (error.message === "not_author") throw forbidden("You cannot change this comment.");
+            if (error.message === "empty") throw badRequest("A comment cannot be empty. Delete it instead.");
+            if (error.message === "too_long") throw badRequest("That comment is too long.");
+          }
           throw error;
         }
       }

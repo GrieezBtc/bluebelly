@@ -300,6 +300,7 @@ const momentSelect = (viewerId: number) => ({
   mediaHeight: moments.mediaHeight,
   audience: moments.audience,
   audienceLocked: moments.audienceLocked,
+  editedAt: moments.editedAt,
   createdAt: moments.createdAt,
   authorId: moments.authorId,
   authorUsername: users.username,
@@ -326,6 +327,7 @@ type MomentRow = {
   mediaHeight: number | null;
   audience: MomentAudience;
   audienceLocked: boolean;
+  editedAt: Date | null;
   createdAt: Date;
   authorId: number;
   authorUsername: string;
@@ -353,6 +355,8 @@ function mapMoment(row: MomentRow, viewerId: number | null): MomentView {
     mediaHeight: row.mediaHeight,
     audience: row.audience,
     audienceLocked: row.audienceLocked,
+    // Edits are silent: nothing in the app shows that a Moment was changed.
+    editedAt: null,
     createdAt: row.createdAt.toISOString(),
     author: {
       id: row.authorId,
@@ -527,7 +531,7 @@ export async function reactToComment(viewer: AuthUser, momentId: number, comment
       actorId: viewer.id,
       entityType: "moment",
       entityId: momentId,
-      preview: `Reacted ${info.emoji} ${info.label.toLowerCase()} to your comment: ${comment.body.slice(0, 70)}`,
+      preview: `Reacted ${info.emoji} ${info.label.toLowerCase()} to your comment`,
     });
   }
 
@@ -544,6 +548,7 @@ export async function listComments(viewerId: number | null, momentId: number): P
       commentId: momentComments.id,
       body: momentComments.body,
       parentCommentId: momentComments.parentCommentId,
+      editedAt: momentComments.editedAt,
       createdAt: momentComments.createdAt,
       authorId: users.id,
       username: users.username,
@@ -559,6 +564,8 @@ export async function listComments(viewerId: number | null, momentId: number): P
     .where(eq(momentComments.momentId, momentId))
     .orderBy(momentComments.createdAt);
   const byId = new Map(rows.map((row) => [row.commentId, row]));
+  const [ownerRow] = await db.select({ authorId: moments.authorId }).from(moments).where(eq(moments.id, momentId)).limit(1);
+  const momentOwnerId = ownerRow?.authorId ?? null;
   const reactionRows = rows.length
     ? await db
         .select({ commentId: commentReactions.commentId, userId: commentReactions.userId, reaction: commentReactions.reaction })
@@ -576,6 +583,8 @@ export async function listComments(viewerId: number | null, momentId: number): P
       author: toPublicUser({ ...row, id: row.authorId }),
       reactions: summary.reactions,
       myReaction: summary.myReaction,
+      editedAt: null,
+      canDelete: viewerId !== null && (viewerId === row.authorId || viewerId === momentOwnerId),
       replyTo: parent
         ? { id: parent.commentId, authorName: parent.name, authorUsername: parent.username, snippet: parent.body.slice(0, 80) }
         : null,
@@ -683,7 +692,7 @@ export async function addComment(viewer: AuthUser, momentId: number, body: strin
       actorId: viewer.id,
       entityType: "moment",
       entityId: momentId,
-      preview: `Replied to your comment: ${body.slice(0, 80)}`,
+      preview: "Replied to your comment",
     });
   }
   if (!parent || parent.userId !== found.moment.author.id) {
@@ -693,7 +702,7 @@ export async function addComment(viewer: AuthUser, momentId: number, body: strin
       actorId: viewer.id,
       entityType: "moment",
       entityId: momentId,
-      preview: body.slice(0, 90),
+      preview: "Commented on your Moment",
     });
   }
   const [count] = await db
@@ -709,12 +718,56 @@ export async function addComment(viewer: AuthUser, momentId: number, body: strin
       author: toPublicUser(viewer),
       reactions: [],
       myReaction: null,
+      editedAt: null,
+      canDelete: true,
       replyTo: parent
         ? { id: parent.id, authorName: parent.name, authorUsername: parent.username, snippet: parent.body.slice(0, 80) }
         : null,
     } satisfies CommentView,
     commentCount: Number(count?.c ?? 0),
   };
+}
+
+/** Edit your own comment. */
+export async function editComment(viewer: AuthUser, momentId: number, commentId: number, rawBody: string) {
+  const found = await getMoment(viewer.id, momentId);
+  if (!found) throw new Error("not_found");
+  const body = rawBody.trim();
+  if (body.length === 0) throw new Error("empty");
+  if (body.length > 600) throw new Error("too_long");
+  const [comment] = await db
+    .select()
+    .from(momentComments)
+    .where(and(eq(momentComments.id, commentId), eq(momentComments.momentId, momentId)))
+    .limit(1);
+  if (!comment) throw new Error("not_found");
+  if (comment.userId !== viewer.id) throw new Error("not_author");
+  if (comment.body === body) return { id: comment.id, body: comment.body, editedAt: null };
+  const now = new Date();
+  await db.update(momentComments).set({ body, editedAt: now }).where(eq(momentComments.id, commentId));
+  return { id: comment.id, body, editedAt: null };
+}
+
+/** Delete a comment: its author or the Moment's owner can. Replies to it stay, without the quote. Nothing marks the removal. */
+export async function deleteComment(viewer: AuthUser, momentId: number, commentId: number) {
+  const [comment] = await db
+    .select({ id: momentComments.id, userId: momentComments.userId })
+    .from(momentComments)
+    .where(and(eq(momentComments.id, commentId), eq(momentComments.momentId, momentId)))
+    .limit(1);
+  if (!comment) throw new Error("not_found");
+  if (comment.userId !== viewer.id) {
+    const [owner] = await db.select({ authorId: moments.authorId }).from(moments).where(eq(moments.id, momentId)).limit(1);
+    if (!owner || owner.authorId !== viewer.id) throw new Error("not_author");
+  }
+  await db.update(momentComments).set({ parentCommentId: null }).where(eq(momentComments.parentCommentId, commentId));
+  await db.delete(commentReactions).where(eq(commentReactions.commentId, commentId));
+  await db.delete(momentComments).where(eq(momentComments.id, commentId));
+  const [count] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(momentComments)
+    .where(eq(momentComments.momentId, momentId));
+  return { commentId, commentCount: Number(count?.c ?? 0) };
 }
 
 export async function shareMoment(viewer: AuthUser, momentId: number) {
