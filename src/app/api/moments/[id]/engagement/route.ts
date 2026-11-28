@@ -1,6 +1,7 @@
-import { fail, notFound, ok, readJson, requireString } from "@/lib/api";
+import { badRequest, fail, notFound, ok, readJson, requireString } from "@/lib/api";
 import { requireVerifiedUser } from "@/lib/auth";
-import { addComment, getMoment, listComments, shareMoment, toggleLike } from "@/db/store";
+import { addComment, getMoment, listComments, reactToComment, shareMoment, toggleLike } from "@/db/store";
+import { isCommentReaction } from "@/lib/reactions";
 import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function POST(request: Request, { params }: Params) {
     const { id } = await params;
     const momentId = Number(id);
     const user = await requireVerifiedUser(request);
-    const body = await readJson<{ action?: string; body?: string; parentId?: number }>(request);
+    const body = await readJson<{ action?: string; body?: string; parentId?: number; commentId?: number; reaction?: string | null }>(request);
     switch (body.action) {
       case "like":
         return ok(await toggleLike(user, momentId, true));
@@ -40,6 +41,17 @@ export async function POST(request: Request, { params }: Params) {
           return ok(await addComment(user, momentId, text, parentId), 201);
         } catch (error) {
           if (error instanceof Error && error.message === "parent_not_found") throw notFound("That comment is no longer available.");
+          throw error;
+        }
+      }
+      case "react": {
+        if (typeof body.commentId !== "number" || !Number.isInteger(body.commentId)) throw notFound("That comment is no longer available.");
+        const reaction = body.reaction === null || body.reaction === undefined ? null : body.reaction;
+        if (reaction !== null && !isCommentReaction(reaction)) throw badRequest("Pick one of the six reactions.");
+        try {
+          return ok(await reactToComment(user, momentId, body.commentId, reaction));
+        } catch (error) {
+          if (error instanceof Error && error.message === "not_found") throw notFound("That comment is no longer available.");
           throw error;
         }
       }

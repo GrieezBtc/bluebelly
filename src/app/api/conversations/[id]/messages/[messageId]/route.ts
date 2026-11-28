@@ -1,6 +1,6 @@
 import { badRequest, conflict, fail, forbidden, notFound, ok, readJson } from "@/lib/api";
 import { requireVerifiedUser } from "@/lib/auth";
-import { deleteMessage, editMessage } from "@/db/store";
+import { deleteMessage, editMessage, reactToMessage } from "@/db/store";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,8 @@ function mapError(error: unknown) {
         return fail(badRequest("A message cannot be empty. Delete it instead."));
       case "too_long":
         return fail(badRequest("That message is too long."));
+      case "invalid_emoji":
+        return fail(badRequest("Choose an emoji to react with."));
       case "not_text":
         return fail(badRequest("Only text messages can be edited."));
     }
@@ -37,6 +39,19 @@ export async function PATCH(request: Request, { params }: Params) {
     if (typeof body.body !== "string") throw badRequest("Write the new message first.");
     const result = await editMessage(user, Number(id), Number(messageId), body.body);
     return ok(result);
+  } catch (error) {
+    return mapError(error);
+  }
+}
+
+/** PUT — react to a message with any emoji (or remove your reaction with null / the same emoji). */
+export async function PUT(request: Request, { params }: Params) {
+  try {
+    const { id, messageId } = await params;
+    const user = await requireVerifiedUser(request);
+    const body = await readJson<{ emoji?: string | null }>(request);
+    const emoji = typeof body.emoji === "string" ? body.emoji : null;
+    return ok(await reactToMessage(user, Number(id), Number(messageId), emoji));
   } catch (error) {
     return mapError(error);
   }

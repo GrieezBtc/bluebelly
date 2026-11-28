@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/app-shell";
 import { Avatar, Badge, ErrorState, InfoBanner, LoadingRows, TimeAgo } from "@/components/ui";
 import { MomentCard } from "@/components/moments/moment-card";
 import { api } from "@/lib/client";
+import { CommentReactionBar } from "@/components/comment-reactions";
 import type { CommentView, MomentView } from "@/lib/types";
 
 export default function MomentDetailPage() {
@@ -93,7 +94,7 @@ export default function MomentDetailPage() {
             {comments.map((comment) => (
               <li key={comment.id} className="flex gap-3 px-4 py-3">
                 <Avatar user={comment.author} size="sm" />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 text-sm font-semibold">
                     <Link href={`/profile/${comment.author.username}`} className="hover:underline">
                       {comment.author.name}
@@ -101,6 +102,7 @@ export default function MomentDetailPage() {
                     <TimeAgo iso={comment.createdAt} className="caption font-normal" />
                   </p>
                   <p className="body-sm whitespace-pre-wrap">{comment.body}</p>
+                  <CommentReactionBar momentId={Number(params?.id)} comment={comment} />
                 </div>
               </li>
             ))}

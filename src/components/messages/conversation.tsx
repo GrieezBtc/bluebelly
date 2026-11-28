@@ -24,6 +24,7 @@ import {
 import { api, useCopyToClipboard } from "@/lib/client";
 import { useSession } from "@/components/providers";
 import { cn, formatClock, timeLeftLabel } from "@/lib/utils";
+import { normalizeEmoji, QUICK_MESSAGE_EMOJIS } from "@/lib/reactions";
 import { DISAPPEAR_LABELS, disappearChoiceFromSeconds, EXPIRY_COPY, type DisappearChoice } from "@/lib/privacy";
 import type { ConversationDetail, MessageView } from "@/lib/types";
 
@@ -55,6 +56,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [deleteTarget, setDeleteTarget] = useState<MessageView | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ username: string; name: string } | null>(null);
   const [replyingTo, setReplyingTo] = useState<MessageView | null>(null);
+  const [emojiKeyboard, setEmojiKeyboard] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [obscured, setObscured] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -403,6 +405,45 @@ export function ConversationView({ conversationId }: { conversationId: number })
     await load(true);
   }
 
+  /** React with any emoji; the same emoji again (or an empty one) removes your reaction. */
+  async function reactTo(target: MessageView, emoji: string) {
+    const previous = target.reactions;
+    const mineBefore = previous.find((item) => item.mine)?.emoji ?? null;
+    const next = mineBefore === emoji ? null : emoji;
+    const counts = new Map<string, MessageView["reactions"][number]>(previous.map((item) => [item.emoji, { ...item }]));
+    if (mineBefore) {
+      const entry = counts.get(mineBefore);
+      if (entry) {
+        entry.count -= 1;
+        entry.mine = false;
+      }
+    }
+    if (next) {
+      const entry = counts.get(next) ?? { emoji: next, count: 0, mine: false };
+      entry.count += 1;
+      entry.mine = true;
+      counts.set(next, entry);
+    }
+    const optimistic = Array.from(counts.values()).filter((item) => item.count > 0);
+    const apply = (reactions: MessageView["reactions"]) =>
+      setDetail((current) =>
+        current
+          ? { ...current, messages: current.messages.map((item) => (item.id === target.id ? { ...item, reactions } : item)) }
+          : current,
+      );
+    apply(optimistic);
+    try {
+      const result = await api.put<{ reactions: MessageView["reactions"] }>(
+        `/api/conversations/${conversationId}/messages/${target.id}`,
+        { emoji: next },
+      );
+      apply(result.reactions);
+    } catch (err) {
+      apply(previous);
+      show({ title: err instanceof Error ? err.message : "Could not react to that message.", tone: "error" });
+    }
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
     const target = deleteTarget;
@@ -517,6 +558,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
                 onReply={groupSendBlocked ? undefined : () => startReply(message)}
                 now={now}
                 onOpenMenu={() => setMessageMenu(message)}
+                onReact={(emoji) => void reactTo(message, emoji)}
               />
             ))}
           </ol>
@@ -886,8 +928,68 @@ export function ConversationView({ conversationId }: { conversationId: number })
         </div>
       </Overlay>
 
-      <Overlay open={Boolean(messageMenu)} onClose={() => setMessageMenu(null)} title="Message options">
+      <Overlay
+        open={Boolean(messageMenu)}
+        onClose={() => {
+          setMessageMenu(null);
+          setEmojiKeyboard(false);
+        }}
+        title="Message options"
+      >
         <div className="flex flex-col gap-1">
+          {messageMenu ? (
+            <div className="flex flex-col gap-2 pb-2">
+              <div className="flex items-center justify-between gap-1" role="group" aria-label="React to this message">
+                {QUICK_MESSAGE_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className={cn(
+                      "grid h-11 w-11 place-items-center rounded-full text-2xl transition-transform active:scale-110",
+                      messageMenu.reactions.some((item) => item.mine && item.emoji === emoji) && "bg-brand-soft",
+                    )}
+                    aria-label={`React ${emoji}`}
+                    onClick={() => {
+                      void reactTo(messageMenu, emoji);
+                      setMessageMenu(null);
+                      setEmojiKeyboard(false);
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="grid h-11 w-11 place-items-center rounded-full bg-[color:var(--surface-2)] text-xl font-bold"
+                  aria-label="More emojis"
+                  aria-expanded={emojiKeyboard}
+                  onClick={() => setEmojiKeyboard((open) => !open)}
+                >
+                  +
+                </button>
+              </div>
+              {emojiKeyboard ? (
+                <div className="flex flex-col gap-1">
+                  <input
+                    autoFocus
+                    className="input text-center text-2xl"
+                    inputMode="text"
+                    placeholder="😀"
+                    aria-label="Type or pick any emoji from your keyboard"
+                    autoComplete="off"
+                    onChange={(event) => {
+                      const emoji = normalizeEmoji(event.target.value);
+                      if (!emoji) return;
+                      void reactTo(messageMenu, emoji);
+                      setMessageMenu(null);
+                      setEmojiKeyboard(false);
+                    }}
+                  />
+                  <p className="caption text-center">Open the emoji key on your keyboard and tap any emoji.</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {messageMenu ? (
             <button
               type="button"
@@ -1050,6 +1152,7 @@ function MessageBubble({
   protect,
   onPlaybackEnded,
   onReply,
+  onReact,
   now,
   onOpenMenu,
 }: {
@@ -1058,6 +1161,7 @@ function MessageBubble({
   protect: boolean;
   onPlaybackEnded: () => void;
   onReply?: () => void;
+  onReact: (emoji: string) => void;
   now: number;
   onOpenMenu: () => void;
 }) {
@@ -1194,6 +1298,24 @@ function MessageBubble({
               {...(protect ? { controlsList: "nodownload noremoteplayback", disableRemotePlayback: true } : {})}
             />
             {message.durationSec ? <span className="text-xs numeric">{message.durationSec}s</span> : null}
+          </div>
+        ) : null}
+
+        {message.reactions.length > 0 ? (
+          <div className="mt-1 flex flex-wrap gap-1" aria-label="Reactions">
+            {message.reactions.map((item) => (
+              <button
+                key={item.emoji}
+                type="button"
+                className="reaction-pill"
+                data-mine={item.mine}
+                aria-label={`${item.emoji} ${item.count}${item.mine ? ", your reaction" : ""}`}
+                onClick={() => onReact(item.emoji)}
+              >
+                <span aria-hidden="true">{item.emoji}</span>
+                {item.count > 1 ? <span className="numeric">{item.count}</span> : null}
+              </button>
+            ))}
           </div>
         ) : null}
 

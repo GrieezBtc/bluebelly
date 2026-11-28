@@ -35,6 +35,7 @@ export type NotificationType =
   | "like"
   | "comment"
   | "reply"
+  | "reaction"
   | "mention"
   | "message_request"
   | "message"
@@ -281,6 +282,30 @@ export const messageViews = pgTable(
     viewedAt: timestamp("viewed_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [unique("message_views_unique").on(t.messageId, t.userId)],
+);
+
+export const messageReactions = pgTable(
+  "message_reactions",
+  {
+    id: serial("id").primaryKey(),
+    messageId: integer("message_id").notNull(),
+    userId: integer("user_id").notNull(),
+    emoji: text("emoji").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique("message_reactions_unique").on(t.messageId, t.userId), index("message_reactions_message_idx").on(t.messageId)],
+);
+
+export const commentReactions = pgTable(
+  "comment_reactions",
+  {
+    id: serial("id").primaryKey(),
+    commentId: integer("comment_id").notNull(),
+    userId: integer("user_id").notNull(),
+    reaction: text("reaction").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [unique("comment_reactions_unique").on(t.commentId, t.userId), index("comment_reactions_comment_idx").on(t.commentId)],
 );
 
 export const notifications = pgTable(

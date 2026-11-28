@@ -2,6 +2,7 @@
  * Shared API contracts. These types are the boundary between the BlueBelly backend
  * and any client (web PWA today, native Android/iOS later).
  */
+import type { CommentReaction } from "@/lib/reactions";
 import type {
   ConversationKind,
   FollowState,
@@ -91,6 +92,9 @@ export type CommentView = {
   createdAt: string;
   author: PublicUser;
   isMine: boolean;
+  /** Reaction totals (only reactions that exist) and the viewer's own, if any. */
+  reactions: { reaction: CommentReaction; count: number }[];
+  myReaction: CommentReaction | null;
   /** Who/what this comment replies to, if it is a reply. */
   replyTo: { id: number; authorName: string; authorUsername: string; snippet: string } | null;
 };
@@ -141,6 +145,8 @@ export type MessageView = {
   canDelete: boolean;
   /** False when this message was sent with disappearing messages off. */
   disappears: boolean;
+  /** Emoji reactions, most used first. */
+  reactions: { emoji: string; count: number; mine: boolean }[];
   /** The message this one replies to, if any. */
   replyTo: { id: number; senderName: string; preview: string; deleted: boolean } | null;
 };
@@ -188,6 +194,7 @@ export type NotificationTypeWire =
   | "like"
   | "comment"
   | "reply"
+  | "reaction"
   | "mention"
   | "message_request"
   | "message"

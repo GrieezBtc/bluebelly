@@ -21,6 +21,8 @@ import { api, useCopyToClipboard, useQuery } from "@/lib/client";
 import { useSession } from "@/components/providers";
 import { cn } from "@/lib/utils";
 import { AUDIENCE_COPY, EXPIRY_COPY } from "@/lib/privacy";
+import { CommentReactionBar } from "@/components/comment-reactions";
+import { useSwipeReply } from "@/lib/use-swipe-reply";
 import type { CommentView, ConversationSummary, MomentAudience, MomentView } from "@/lib/types";
 import type { IconName } from "@/components/icons";
 
@@ -326,6 +328,43 @@ export function MomentCard({
   );
 }
 
+function CommentRow({ momentId, comment, onReply }: { momentId: number; comment: CommentView; onReply: () => void }) {
+  // Swipe the comment sideways and let go to reply, the same gesture as in chats.
+  const { dx, bind, progress } = useSwipeReply(comment.id > 0 ? onReply : undefined);
+  return (
+    <li className="relative py-3" style={{ touchAction: "pan-y" }} {...bind}>
+      {dx !== 0 ? (
+        <span
+          aria-hidden="true"
+          className="absolute top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-[color:var(--line)]"
+          style={{ [dx > 0 ? "left" : "right"]: 4, opacity: progress }}
+        >
+          <Icon name="reply" size={16} />
+        </span>
+      ) : null}
+      <div className="flex gap-3" style={{ transform: dx ? `translateX(${dx}px)` : undefined }}>
+        <Avatar user={comment.author} size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-sm font-semibold">
+            <Link href={`/profile/${comment.author.username}`} className="hover:underline">
+              {comment.author.name}
+            </Link>
+            <TimeAgo iso={comment.createdAt} className="caption font-normal" />
+          </p>
+          {comment.replyTo ? (
+            <p className="caption flex items-center gap-1">
+              <Icon name="reply" size={12} />
+              Replying to <span className="font-semibold">{comment.replyTo.authorName}</span>
+            </p>
+          ) : null}
+          <p className="body-sm whitespace-pre-wrap">{comment.body}</p>
+          <CommentReactionBar momentId={momentId} comment={comment} onReply={onReply} />
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function CommentsSheet({
   open,
   onClose,
@@ -360,6 +399,8 @@ function CommentsSheet({
       body: draft.trim(),
       createdAt: new Date().toISOString(),
       isMine: true,
+      reactions: [],
+      myReaction: null,
       replyTo: replyTo
         ? { id: replyTo.id, authorName: replyTo.author.name, authorUsername: replyTo.author.username, snippet: replyTo.body.slice(0, 80) }
         : null,
@@ -411,38 +452,17 @@ function CommentsSheet({
         ) : (data?.comments ?? []).length === 0 ? (
           <EmptyState icon="comment" title="No comments yet" description="Be the first to reply. Keep it kind." />
         ) : (
-          <ul className="flex flex-col divide-y divide-[color:var(--line)]">
+          <ul className="flex flex-col divide-y divide-[color:var(--line)] overflow-x-clip">
             {data?.comments.map((comment) => (
-              <li key={comment.id} className="flex gap-3 py-3">
-                <Avatar user={comment.author} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1.5 text-sm font-semibold">
-                    <Link href={`/profile/${comment.author.username}`} className="hover:underline">
-                      {comment.author.name}
-                    </Link>
-                    <TimeAgo iso={comment.createdAt} className="caption font-normal" />
-                  </p>
-                  {comment.replyTo ? (
-                    <p className="caption flex items-center gap-1">
-                      <Icon name="reply" size={12} />
-                      Replying to <span className="font-semibold">{comment.replyTo.authorName}</span>
-                    </p>
-                  ) : null}
-                  <p className="body-sm whitespace-pre-wrap">{comment.body}</p>
-                  {comment.id > 0 ? (
-                    <button
-                      type="button"
-                      className="caption mt-0.5 font-semibold hover:underline"
-                      onClick={() => {
-                        setReplyTo(comment);
-                        inputRef.current?.focus();
-                      }}
-                    >
-                      Reply
-                    </button>
-                  ) : null}
-                </div>
-              </li>
+              <CommentRow
+                key={comment.id}
+                momentId={momentId}
+                comment={comment}
+                onReply={() => {
+                  setReplyTo(comment);
+                  inputRef.current?.focus();
+                }}
+              />
             ))}
           </ul>
         )}

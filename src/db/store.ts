@@ -8,6 +8,8 @@ import {
   conversations,
   follows,
   mediaAssets,
+  commentReactions,
+  messageReactions,
   messageViews,
   messages,
   momentComments,
@@ -58,6 +60,7 @@ import { sendPushToUser } from "@/lib/push";
 import { isAdminUser } from "@/lib/admin";
 import { generateShareCode, isValidShareCode } from "@/lib/share";
 import { sendNotificationEmail } from "@/lib/email";
+import { commentReactionInfo, isCommentReaction, normalizeEmoji, type CommentReaction } from "@/lib/reactions";
 import type { AuthUser } from "@/lib/auth";
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
@@ -479,6 +482,63 @@ export async function getMoment(viewerId: number | null, momentId: number) {
   return { moment: mapMoment(row, viewerId), author: { id: row.authorId, profilePrivacy: row.authorPrivacy } };
 }
 
+function summarizeCommentReactions(rows: { userId: number; reaction: string }[], viewerId: number | null) {
+  const counts = new Map<CommentReaction, number>();
+  let myReaction: CommentReaction | null = null;
+  for (const row of rows) {
+    if (!isCommentReaction(row.reaction)) continue;
+    counts.set(row.reaction, (counts.get(row.reaction) ?? 0) + 1);
+    if (viewerId !== null && row.userId === viewerId) myReaction = row.reaction;
+  }
+  const reactions = Array.from(counts, ([reaction, count]) => ({ reaction, count })).sort((a, b) => b.count - a.count);
+  return { reactions, myReaction };
+}
+
+/** Set, change or (with null / the same reaction) remove the viewer's reaction on a comment. */
+export async function reactToComment(viewer: AuthUser, momentId: number, commentId: number, reaction: CommentReaction | null) {
+  const found = await getMoment(viewer.id, momentId);
+  if (!found) throw new Error("not_found");
+  const [comment] = await db
+    .select({ id: momentComments.id, userId: momentComments.userId, body: momentComments.body })
+    .from(momentComments)
+    .where(and(eq(momentComments.id, commentId), eq(momentComments.momentId, momentId)))
+    .limit(1);
+  if (!comment) throw new Error("not_found");
+
+  const [existing] = await db
+    .select({ id: commentReactions.id, reaction: commentReactions.reaction })
+    .from(commentReactions)
+    .where(and(eq(commentReactions.commentId, commentId), eq(commentReactions.userId, viewer.id)))
+    .limit(1);
+
+  let applied: CommentReaction | null = reaction;
+  if (!reaction || existing?.reaction === reaction) {
+    applied = null;
+    if (existing) await db.delete(commentReactions).where(eq(commentReactions.id, existing.id));
+  } else {
+    await db
+      .insert(commentReactions)
+      .values({ commentId, userId: viewer.id, reaction })
+      .onConflictDoUpdate({ target: [commentReactions.commentId, commentReactions.userId], set: { reaction, createdAt: new Date() } });
+    // The comment's author hears about it (never about their own reaction, and never about removals).
+    const info = commentReactionInfo(reaction);
+    await createNotification({
+      userId: comment.userId,
+      type: "reaction",
+      actorId: viewer.id,
+      entityType: "moment",
+      entityId: momentId,
+      preview: `Reacted ${info.emoji} ${info.label.toLowerCase()} to your comment: ${comment.body.slice(0, 70)}`,
+    });
+  }
+
+  const rows = await db
+    .select({ userId: commentReactions.userId, reaction: commentReactions.reaction })
+    .from(commentReactions)
+    .where(eq(commentReactions.commentId, commentId));
+  return { commentId, ...summarizeCommentReactions(rows, viewer.id), applied };
+}
+
 export async function listComments(viewerId: number | null, momentId: number): Promise<CommentView[]> {
   const rows = await db
     .select({
@@ -500,7 +560,14 @@ export async function listComments(viewerId: number | null, momentId: number): P
     .where(eq(momentComments.momentId, momentId))
     .orderBy(momentComments.createdAt);
   const byId = new Map(rows.map((row) => [row.commentId, row]));
+  const reactionRows = rows.length
+    ? await db
+        .select({ commentId: commentReactions.commentId, userId: commentReactions.userId, reaction: commentReactions.reaction })
+        .from(commentReactions)
+        .where(inArray(commentReactions.commentId, rows.map((row) => row.commentId)))
+    : [];
   return rows.map((row) => {
+    const summary = summarizeCommentReactions(reactionRows.filter((r) => r.commentId === row.commentId), viewerId);
     const parent = row.parentCommentId ? byId.get(row.parentCommentId) : undefined;
     return {
       id: row.commentId,
@@ -508,6 +575,8 @@ export async function listComments(viewerId: number | null, momentId: number): P
       createdAt: row.createdAt.toISOString(),
       isMine: viewerId === row.authorId,
       author: toPublicUser({ ...row, id: row.authorId }),
+      reactions: summary.reactions,
+      myReaction: summary.myReaction,
       replyTo: parent
         ? { id: parent.commentId, authorName: parent.name, authorUsername: parent.username, snippet: parent.body.slice(0, 80) }
         : null,
@@ -639,6 +708,8 @@ export async function addComment(viewer: AuthUser, momentId: number, body: strin
       createdAt: created.createdAt.toISOString(),
       isMine: true,
       author: toPublicUser(viewer),
+      reactions: [],
+      myReaction: null,
       replyTo: parent
         ? { id: parent.id, authorName: parent.name, authorUsername: parent.username, snippet: parent.body.slice(0, 80) }
         : null,
@@ -681,7 +752,7 @@ export async function createNotification(input: {
   if (input.actorId === input.userId) return;
   const rows = await db.select({ prefs: users.notificationPrefs }).from(users).where(eq(users.id, input.userId)).limit(1);
   const prefs = normalizePrefs(rows[0]?.prefs ?? null);
-  if (input.type === "message" || input.type === "message_request" || (input.type === "reply" && input.entityType === "conversation")) {
+  if (input.type === "message" || input.type === "message_request" || ((input.type === "reply" || input.type === "reaction") && input.entityType === "conversation")) {
     if (!prefs.messages) return;
   } else if (input.type === "follow" || input.type === "follow_request" || input.type === "follow_accepted") {
     if (!prefs.requests) return;
@@ -713,6 +784,8 @@ function notificationCopy(type: NotificationView["type"], actorName: string, pre
       return { title: actorName, body: preview || "Sent you a message" };
     case "message_request":
       return { title: actorName, body: preview || "Sent you a message request" };
+    case "reaction":
+      return { title: `${actorName} reacted`, body: preview || "Reacted to your message" };
     case "like":
       return { title: actorName, body: "Liked your Moment" };
     case "reply":
@@ -1197,6 +1270,15 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       deleted: target.deletedAt !== null,
     };
   };
+  const reactionRows = messageRows.length
+    ? await db
+        .select({ messageId: messageReactions.messageId, userId: messageReactions.userId, emoji: messageReactions.emoji })
+        .from(messageReactions)
+        .where(inArray(messageReactions.messageId, messageRows.map((r) => r.id)))
+        .orderBy(messageReactions.createdAt)
+    : [];
+  const reactionsByMessage = new Map<number, typeof reactionRows>();
+  for (const row of reactionRows) reactionsByMessage.set(row.messageId, [...(reactionsByMessage.get(row.messageId) ?? []), row]);
   const messageViewsList: MessageView[] = messageRows.map((m) => {
     const isMine = m.senderId === viewer.id;
     const disappears = !m.isSystem && m.ttlSec !== null;
@@ -1240,6 +1322,7 @@ export async function getConversationDetail(viewer: AuthUser, conversationId: nu
       canEdit: !deleted && !m.isSystem && isMine && (m.kind === "text" || m.kind === "image" || m.kind === "video"),
       canDelete: !deleted && !m.isSystem && (isMine || isAdminHere),
       disappears,
+      reactions: deleted ? [] : summarizeMessageReactions(reactionsByMessage.get(m.id) ?? [], viewer.id),
       replyTo: deleted ? null : resolveReply(m.replyToId),
     } satisfies MessageView;
   });
@@ -1469,6 +1552,7 @@ export async function sendMessage(
     deletedBy: null,
     canEdit: created.kind === "text" || created.kind === "image" || created.kind === "video",
     canDelete: true,
+    reactions: [],
     replyTo: replyTarget
       ? {
           id: replyTarget.id,
@@ -1528,6 +1612,74 @@ export async function deleteMessage(viewer: AuthUser, conversationId: number, me
     .where(eq(messages.id, messageId));
   if (mediaId) await deleteAsset(mediaId);
   return { id: message.id, deleted: true };
+}
+
+function summarizeMessageReactions(rows: { userId: number; emoji: string }[], viewerId: number): MessageView["reactions"] {
+  const byEmoji = new Map<string, { emoji: string; count: number; mine: boolean }>();
+  for (const row of rows) {
+    const entry = byEmoji.get(row.emoji) ?? { emoji: row.emoji, count: 0, mine: false };
+    entry.count += 1;
+    if (row.userId === viewerId) entry.mine = true;
+    byEmoji.set(row.emoji, entry);
+  }
+  return Array.from(byEmoji.values()).sort((a, b) => b.count - a.count);
+}
+
+function reactionTargetLabel(message: { kind: MessageView["kind"]; body: string }) {
+  if (message.kind === "voice") return "your voice message";
+  if (message.kind === "image") return "your photo";
+  if (message.kind === "video") return "your video";
+  return `your message: ${message.body.slice(0, 70)}`;
+}
+
+/** Set, change or (emoji null / the same emoji) remove the viewer's reaction. Any emoji is allowed. */
+export async function reactToMessage(viewer: AuthUser, conversationId: number, messageId: number, emojiInput: string | null) {
+  await requireActiveConversationMember(viewer, conversationId);
+  const now = new Date();
+  const [message] = await db
+    .select()
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.conversationId, conversationId)))
+    .limit(1);
+  if (!message || message.isSystem || message.expiredAt || (message.expiresAt && message.expiresAt <= now)) throw new Error("not_found");
+  if (message.deletedAt) throw new Error("message_deleted");
+
+  let emoji: string | null = null;
+  if (emojiInput !== null && emojiInput !== "") {
+    emoji = normalizeEmoji(emojiInput);
+    if (!emoji) throw new Error("invalid_emoji");
+  }
+
+  const [existing] = await db
+    .select({ id: messageReactions.id, emoji: messageReactions.emoji })
+    .from(messageReactions)
+    .where(and(eq(messageReactions.messageId, messageId), eq(messageReactions.userId, viewer.id)))
+    .limit(1);
+
+  if (!emoji || existing?.emoji === emoji) {
+    if (existing) await db.delete(messageReactions).where(eq(messageReactions.id, existing.id));
+  } else {
+    await db
+      .insert(messageReactions)
+      .values({ messageId, userId: viewer.id, emoji })
+      .onConflictDoUpdate({ target: [messageReactions.messageId, messageReactions.userId], set: { emoji, createdAt: now } });
+    // The message's author is told, in 1:1 chats and groups alike (never for their own reaction or a removal).
+    await createNotification({
+      userId: message.senderId,
+      type: "reaction",
+      actorId: viewer.id,
+      entityType: "conversation",
+      entityId: conversationId,
+      preview: `Reacted ${emoji} to ${reactionTargetLabel(message)}`,
+    });
+  }
+
+  const rows = await db
+    .select({ userId: messageReactions.userId, emoji: messageReactions.emoji })
+    .from(messageReactions)
+    .where(eq(messageReactions.messageId, messageId))
+    .orderBy(messageReactions.createdAt);
+  return { messageId, reactions: summarizeMessageReactions(rows, viewer.id) };
 }
 
 async function requireActiveConversationMember(viewer: AuthUser, conversationId: number) {
