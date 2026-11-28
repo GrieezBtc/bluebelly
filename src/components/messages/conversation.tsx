@@ -28,6 +28,19 @@ import { normalizeEmoji, QUICK_MESSAGE_EMOJIS } from "@/lib/reactions";
 import { DISAPPEAR_LABELS, disappearChoiceFromSeconds, EXPIRY_COPY, type DisappearChoice } from "@/lib/privacy";
 import type { ConversationDetail, MessageView } from "@/lib/types";
 
+function presenceLabel(lastActiveAt: string, now: number): string {
+  const timestamp = Date.parse(lastActiveAt);
+  if (!Number.isFinite(timestamp)) return "Status unavailable";
+  const elapsed = Math.max(0, now - timestamp);
+  if (elapsed < 2 * 60_000) return "Online";
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 60) return `Active ${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Active ${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  return `Active ${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
 export function ConversationView({ conversationId }: { conversationId: number }) {
   const router = useRouter();
   const { user } = useSession();
@@ -62,6 +75,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const cameraPhotoRef = useRef<HTMLInputElement>(null);
   const cameraVideoRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  const documentRef = useRef<HTMLInputElement>(null);
   const [now, setNow] = useState(() => Date.now());
   const [obscured, setObscured] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -419,6 +433,29 @@ export function ConversationView({ conversationId }: { conversationId: number })
     await load(true);
   }
 
+  async function onPickDocument(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      show({ title: "That file is too large", description: "Files can be up to 25 MB.", tone: "error" });
+      return;
+    }
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("scope", "message");
+      const uploaded = await api.upload<{ url: string }>("/api/upload", form);
+      // The file name travels as the message text so the recipient sees what it is.
+      await send("document", file.name.slice(0, 200), uploaded.url);
+    } catch (err) {
+      show({ title: "Upload failed", description: err instanceof Error ? err.message : "Try a smaller file.", tone: "error" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function onPickMedia(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -494,6 +531,14 @@ export function ConversationView({ conversationId }: { conversationId: number })
           <span className="min-w-0">
             <span className="flex items-center gap-1.5">
               <span className="truncate font-semibold">{conversation.title}</span>
+              {conversation.kind === "direct" && otherMember ? (
+                <span className="shrink-0 text-xs font-normal opacity-70" aria-label="Account activity">
+                  {presenceLabel(otherMember.lastActiveAt, now) === "Online" ? (
+                    <span className="mr-1 inline-block h-2 w-2 rounded-full bg-mint align-middle" aria-hidden="true" />
+                  ) : null}
+                  {presenceLabel(otherMember.lastActiveAt, now)}
+                </span>
+              ) : null}
               {conversation.kind === "group" ? <Badge tone="public">Group</Badge> : null}
             </span>
             <span className="caption block truncate">
@@ -615,7 +660,7 @@ export function ConversationView({ conversationId }: { conversationId: number })
           <Icon name="reply" size={16} />
           <div className="min-w-0 flex-1 border-l-2 border-[color:var(--line)] pl-2">
             <p className="truncate text-xs font-semibold">Replying to {replyingTo.isMine ? "yourself" : (replyingTo.sender?.name ?? "message")}</p>
-            <p className="caption truncate">{replyingTo.kind === "text" ? replyingTo.body : replyingTo.kind === "voice" ? "Voice message" : replyingTo.kind === "image" ? "Photo" : "Video"}</p>
+            <p className="caption truncate">{replyingTo.kind === "text" ? replyingTo.body : replyingTo.kind === "voice" ? "Voice message" : replyingTo.kind === "image" ? "Photo" : replyingTo.kind === "video" ? "Video" : "Document"}</p>
           </div>
           <button type="button" className="btn-icon" aria-label="Cancel reply" onClick={() => setReplyingTo(null)}>
             <Icon name="x" size={16} />
@@ -714,12 +759,27 @@ export function ConversationView({ conversationId }: { conversationId: number })
                 <span className="chat-attach-icon"><Icon name="image" size={20} /></span>
                 Photos &amp; videos
               </button>
+              {instant ? null : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="chat-attach-item"
+                  onClick={() => {
+                    setAttachOpen(false);
+                    documentRef.current?.click();
+                  }}
+                >
+                  <span className="chat-attach-icon"><Icon name="file" size={20} /></span>
+                  Document
+                </button>
+              )}
             </div>
           ) : null}
           {/* Hidden pickers: the camera ones open the phone's camera directly (they fall back to a file picker on computers). */}
           <input ref={cameraPhotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickMedia} />
           <input ref={cameraVideoRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={onPickMedia} />
           <input ref={galleryRef} type="file" accept="image/*,video/*" className="hidden" onChange={onPickMedia} />
+          <input ref={documentRef} type="file" className="hidden" onChange={(event) => void onPickDocument(event)} />
           <label className="sr-only" htmlFor={`message-${conversationId}`}>
             Write a message
           </label>
@@ -1329,6 +1389,23 @@ function MessageBubble({
             onEnded={protect && !message.isMine ? onPlaybackEnded : undefined}
             {...(protect ? { controlsList: "nodownload noremoteplayback", disablePictureInPicture: true, disableRemotePlayback: true } : {})}
           />
+        ) : null}
+
+        {message.kind === "document" && message.mediaUrl ? (
+          <a
+            href={message.mediaUrl}
+            download={message.body || "file"}
+            rel="noopener"
+            className="flex min-w-0 max-w-xs items-center gap-3 rounded-md bg-black/10 px-3 py-2 no-underline"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-black/15">
+              <Icon name="file" size={20} />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold">{message.body || "File"}</span>
+              <span className="block text-xs opacity-75">Tap to download</span>
+            </span>
+          </a>
         ) : null}
 
         {(message.kind === "image" || message.kind === "video") && message.body ? (

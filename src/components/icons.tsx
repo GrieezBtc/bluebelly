@@ -59,9 +59,11 @@ export type IconName =
   | "play"
   | "pause"
   | "pin"
-  | "request";
+  | "request"
+  | "file";
 
 const PATHS: Record<IconName, string> = {
+  file: "M7 3.5h7l4 4V20.5H7zM14 3.5v4h4M9.6 12.5h4.8M9.6 15.5h4.8",
   home: "M4 10.4 12 4l8 6.4V19a1 1 0 0 1-1 1h-4.4v-5.4H9.4V20H5a1 1 0 0 1-1-1z",
   moments: "M4 5.5h16v13H4zM4 15l4.6-4 3.4 3 2.6-2.6L20 17M15.6 10.6a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z",
   create: "M12 5v14M5 12h14",

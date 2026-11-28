@@ -50,6 +50,33 @@ export function SessionProvider({ user: initialUser, children }: { user: Session
     }
   }, [router]);
 
+  // Tell the server you are active while the app is open, so chats can show "Online" / "Active 5 min ago".
+  useEffect(() => {
+    if (!user?.id) return;
+    let inFlight = false;
+    const heartbeat = () => {
+      if (document.visibilityState !== "visible" || !navigator.onLine || inFlight) return;
+      inFlight = true;
+      void api
+        .post("/api/presence")
+        .catch(() => {
+          // A failed heartbeat must never interrupt the app.
+        })
+        .finally(() => {
+          inFlight = false;
+        });
+    };
+    heartbeat();
+    const interval = window.setInterval(heartbeat, 45_000);
+    document.addEventListener("visibilitychange", heartbeat);
+    window.addEventListener("online", heartbeat);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", heartbeat);
+      window.removeEventListener("online", heartbeat);
+    };
+  }, [user?.id]);
+
   const value = useMemo<SessionContextValue>(
     () => ({ user, status: user ? "authenticated" : "anonymous", setUser, refresh, signOut }),
     [user, refresh, signOut],

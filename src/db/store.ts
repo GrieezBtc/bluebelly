@@ -1207,7 +1207,9 @@ export async function listConversations(
             ? "Voice message"
             : last.kind === "image"
               ? "Photo"
-              : "Video"
+              : last.kind === "video"
+                ? "Video"
+                : "Document"
       : null;
     return {
       id: m.conversationId,
@@ -1232,6 +1234,7 @@ function replyPreview(m: { kind: MessageView["kind"]; body: string; deletedAt: D
   if (m.kind === "voice") return "Voice message";
   if (m.kind === "image") return "Photo";
   if (m.kind === "video") return "Video";
+  if (m.kind === "document") return "Document";
   return m.body.slice(0, 80);
 }
 
