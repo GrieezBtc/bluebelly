@@ -57,6 +57,11 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [removeTarget, setRemoveTarget] = useState<{ username: string; name: string } | null>(null);
   const [replyingTo, setReplyingTo] = useState<MessageView | null>(null);
   const [emojiKeyboard, setEmojiKeyboard] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const attachRef = useRef<HTMLDivElement>(null);
+  const cameraPhotoRef = useRef<HTMLInputElement>(null);
+  const cameraVideoRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   const [now, setNow] = useState(() => Date.now());
   const [obscured, setObscured] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -69,6 +74,15 @@ export function ConversationView({ conversationId }: { conversationId: number })
   const [editing, setEditing] = useState<File | null>(null);
   const [pendingMedia, setPendingMedia] = useState<{ file: File; url: string } | null>(null);
   const [caption, setCaption] = useState("");
+
+  useEffect(() => {
+    if (!attachOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!attachRef.current?.contains(event.target as Node)) setAttachOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [attachOpen]);
 
   useEffect(() => {
     if (!recording) return;
@@ -405,6 +419,15 @@ export function ConversationView({ conversationId }: { conversationId: number })
     await load(true);
   }
 
+  function onPickMedia(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    // Photos and videos open in the editor first so they can be cropped or trimmed.
+    if (canEditFile(file)) setEditing(file);
+    else stageMedia(file);
+  }
+
   /** React with any emoji; the same emoji again (or an empty one) removes your reaction. */
   async function reactTo(target: MessageView, emoji: string) {
     const previous = target.reactions;
@@ -641,46 +664,83 @@ export function ConversationView({ conversationId }: { conversationId: number })
           if (draft.trim()) void send("text", draft.trim());
         }}
       >
-        <label
-          className={cn("btn-icon", groupSendBlocked && "pointer-events-none opacity-50")}
-          aria-label="Attach a photo or video"
-        >
-          {uploading ? <Spinner /> : <Icon name="image" size={22} />}
-          <input
-            type="file"
-            accept="image/*,video/*"
-            className="sr-only"
+        <div ref={attachRef} className="chat-field">
+          <button
+            type="button"
+            className={cn("chat-plus", attachOpen && "chat-plus--open")}
+            aria-label="Add a photo or video"
+            aria-haspopup="menu"
+            aria-expanded={attachOpen}
+            disabled={groupSendBlocked || uploading}
+            onClick={() => setAttachOpen((open) => !open)}
+          >
+            {uploading ? <Spinner /> : <Icon name="plus" size={22} />}
+          </button>
+          {attachOpen ? (
+            <div role="menu" aria-label="Add to message" className="chat-attach-menu">
+              <button
+                type="button"
+                role="menuitem"
+                className="chat-attach-item"
+                onClick={() => {
+                  setAttachOpen(false);
+                  cameraPhotoRef.current?.click();
+                }}
+              >
+                <span className="chat-attach-icon"><Icon name="camera" size={20} /></span>
+                Take a photo
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="chat-attach-item"
+                onClick={() => {
+                  setAttachOpen(false);
+                  cameraVideoRef.current?.click();
+                }}
+              >
+                <span className="chat-attach-icon"><Icon name="video" size={20} /></span>
+                Record a video
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="chat-attach-item"
+                onClick={() => {
+                  setAttachOpen(false);
+                  galleryRef.current?.click();
+                }}
+              >
+                <span className="chat-attach-icon"><Icon name="image" size={20} /></span>
+                Photos &amp; videos
+              </button>
+            </div>
+          ) : null}
+          {/* Hidden pickers: the camera ones open the phone's camera directly (they fall back to a file picker on computers). */}
+          <input ref={cameraPhotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickMedia} />
+          <input ref={cameraVideoRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={onPickMedia} />
+          <input ref={galleryRef} type="file" accept="image/*,video/*" className="hidden" onChange={onPickMedia} />
+          <label className="sr-only" htmlFor={`message-${conversationId}`}>
+            Write a message
+          </label>
+          <textarea
+            id={`message-${conversationId}`}
+            className="textarea flex-1"
+            rows={1}
+            value={draft}
+            placeholder={groupSendBlocked ? "Messaging is disabled for members" : "Write a message…"}
             disabled={groupSendBlocked}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (!file) return;
-              // Photos and videos open in the editor first so they can be cropped or trimmed.
-              if (canEditFile(file)) setEditing(file);
-              else stageMedia(file);
-            }}
+            onChange={(event) => setDraft(event.target.value)}
           />
-        </label>
-        <label className="sr-only" htmlFor={`message-${conversationId}`}>
-          Write a message
-        </label>
-        <textarea
-          id={`message-${conversationId}`}
-          className="textarea flex-1"
-          rows={1}
-          value={draft}
-          placeholder={groupSendBlocked ? "Messaging is disabled for members" : "Write a message…"}
-          disabled={groupSendBlocked}
-          onChange={(event) => setDraft(event.target.value)}
-        />
+        </div>
         {draft.trim() ? (
-          <button type="submit" className="btn btn-primary" disabled={sending || groupSendBlocked} aria-label="Send message">
+          <button type="submit" className="btn btn-primary chat-action" disabled={sending || groupSendBlocked} aria-label="Send message">
             {sending ? <Spinner /> : <Icon name="send" size={18} />}
           </button>
         ) : (
           <button
             type="button"
-            className={cn("btn", recording ? "btn-danger" : "btn-secondary")}
+            className={cn("btn chat-action", recording ? "btn-danger" : "btn-primary")}
             onClick={toggleRecording}
             disabled={!recorderSupported || uploading || groupSendBlocked}
             aria-label={recording ? "Stop recording" : "Record a voice message"}
